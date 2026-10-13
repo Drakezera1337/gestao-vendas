@@ -107,7 +107,7 @@ function vInicio() {
   const semVenda = (p) => !p.data_venda;
 
   const parado = (cat) => {
-    const est = P.filter((p) => p.categoria === cat && semVenda(p) && !num(p.reparo));
+    const est = P.filter((p) => p.categoria === cat && naListaEstoque(p)); // inclui os que voltaram do conserto
     const con = P.filter((p) => p.categoria === cat && semVenda(p) && num(p.reparo) === 1 && !p.data_entrega_rep);
     return { nEst: est.length, vEst: soma(est, custo), nCon: con.length, vCon: soma(con, custo) };
   };
