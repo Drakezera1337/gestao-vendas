@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0D1B2A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Gestão">
+  <title>Gestão de Vendas</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css?v=2">
+</head>
+<body>
+  <header class="topo">
+    <button id="voltar" class="topo-voltar" type="button" aria-label="Voltar" hidden>‹</button>
+    <h1 id="titulo">Gestão</h1>
+    <button id="pillSync" class="pill" type="button" aria-label="Sincronização"><i></i><span>…</span></button>
+  </header>
+
+  <main id="tela"></main>
+
+  <nav class="abas" aria-label="Seções">
+    <a href="#/inicio" data-aba="inicio"><span aria-hidden="true">🏠</span>Início</a>
+    <a href="#/lista/compras" data-aba="compras"><span aria-hidden="true">📦</span>Estoque</a>
+    <a href="#/lista/vendas" data-aba="vendas"><span aria-hidden="true">✅</span>Vendas</a>
+    <a href="#/lista/conserto" data-aba="conserto"><span aria-hidden="true">🔧</span>Conserto</a>
+    <a href="#/mais" data-aba="mais"><span aria-hidden="true">☰</span>Mais</a>
+  </nav>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="config.js?v=2"></script>
+  <script src="cripto.js?v=2"></script>
+  <script src="dados.js?v=2"></script>
+  <script src="sync.js?v=2"></script>
+  <script src="app.js?v=2"></script>
+</body>
+</html>
