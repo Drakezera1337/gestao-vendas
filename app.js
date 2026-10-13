@@ -131,6 +131,7 @@ function vInicio() {
   const D = Dados.despesas();
   const despMes = soma(D.filter((d) => (d.data || '').startsWith(mes)), (d) => num(d.valor));
   const despHoje = soma(D.filter((d) => d.data === hoje), (d) => num(d.valor));
+  const despMesForma = (f) => soma(D.filter((d) => (d.data || '').startsWith(mes) && d.forma_pagamento === f), (d) => num(d.valor));
   const clientes = new Set(P.filter((p) => (p.nome_comprador || '').trim() && p.data_venda).map((p) => p.nome_comprador.trim())).size;
 
   // estoque por plataforma / modelo (mesmas regras da dashboard do PC)
@@ -171,9 +172,11 @@ function vInicio() {
     <div class="secao" style="--cor:var(--roxo)">🧾 Financeiro</div>
     <div class="grade">
       ${kpi('Fiado a receber', fmtBRL(soma(parcAbertas, (x) => num(x.valor))), { nota: `${parcAbertas.length} parcela(s)${atrasadas ? ` · ${atrasadas} atrasada(s)` : ''}`, href: '#/fiado', cor: atrasadas ? 'var(--verm)' : 'var(--amb)' })}
-      ${kpi('Despesas do mês', fmtBRL(despMes), { nota: `hoje ${fmtBRL(despHoje)}`, href: '#/despesas', cor: 'var(--verm)', corValor: 'var(--verm)' })}
       ${kpi('Clientes', `${clientes}`, { nota: 'ver lista', href: '#/clientes', cor: 'var(--roxo)' })}
+      ${kpi('Despesas do mês', fmtBRL(despMes), { nota: `hoje ${fmtBRL(despHoje)}`, href: '#/despesas', cor: 'var(--verm)', corValor: 'var(--verm)' })}
       ${kpi('Nova despesa', '+ Lançar', { href: '#/despesa/nova', cor: 'var(--borda)' })}
+      ${kpi('💚 Pix no mês', fmtBRL(despMesForma('Pix')), { nota: 'despesas', href: '#/despesas', cor: 'var(--verde)' })}
+      ${kpi('💳 Cartão no mês', fmtBRL(despMesForma('Cartão')), { nota: 'despesas', href: '#/despesas', cor: 'var(--azul)' })}
     </div>
 
     <div class="secao" style="--cor:var(--azul)">📦 Estoque</div>
@@ -747,6 +750,7 @@ function vForm(r) {
 }
 
 // ─── Despesas ───────────────────────────────────────────────────────────────
+const FORMAS_DESPESA = { Pix: '<span class="pos">💚 Pix</span>', 'Cartão': '<span style="color:var(--azul)">💳 Cartão</span>' };
 const filtroDesp = { modo: 'mes', mes: mesISO(), de: `${mesISO()}-01`, ate: hojeISO() };
 
 function vDespesas() {
@@ -778,9 +782,14 @@ function vDespesas() {
     ${filtroDesp.modo === 'intervalo' ? `<div class="duas">
       ${campo('De', `<input type="date" id="dDe" value="${filtroDesp.de}">`)}${campo('Até', `<input type="date" id="dAte" value="${filtroDesp.ate}">`)}</div>` : ''}
     <div class="secao" style="--cor:var(--verm)">${esc(desc)}: ${fmtBRL(tot(lista))} (${lista.length})</div>
+    <div class="grade" style="margin-bottom:10px">
+      ${kpi('💚 Pix', fmtBRL(tot(lista.filter((d) => d.forma_pagamento === 'Pix'))), { cor: 'var(--verde)' })}
+      ${kpi('💳 Cartão', fmtBRL(tot(lista.filter((d) => d.forma_pagamento === 'Cartão'))), { cor: 'var(--azul)' })}
+    </div>
+    ${lista.some((d) => !FORMAS_DESPESA[d.forma_pagamento]) ? `<div class="sub" style="margin-bottom:8px">❔ Sem forma: ${fmtBRL(tot(lista.filter((d) => !FORMAS_DESPESA[d.forma_pagamento])))} — toque na despesa para escolher Pix ou Cartão</div>` : ''}
     <div class="itens">${lista.length ? lista.map((d) => `<a class="card item" href="#/despesa/${d.uid}">
       <div class="item-topo"><span class="item-nome">${esc(d.nome)}</span><b class="neg">${fmtBRL(d.valor)}</b></div>
-      <div class="linha"><span>${fmtData(d.data)}</span>${d.descricao ? `<span>${esc(d.descricao)}</span>` : ''}</div></a>`).join('')
+      <div class="linha"><span>${fmtData(d.data)}</span>${FORMAS_DESPESA[d.forma_pagamento] || '<span class="neg">❔ sem forma</span>'}${d.descricao ? `<span>${esc(d.descricao)}</span>` : ''}</div></a>`).join('')
       : '<div class="vazio">Nenhuma despesa neste período.</div>'}</div>
     <button type="button" class="fab" aria-label="Nova despesa" data-ir="#/despesa/nova">+</button>`;
 
@@ -812,17 +821,27 @@ function vDespesa(r) {
       ${campo('Valor (R$) *', `<input type="text" name="valor" inputmode="decimal" placeholder="0,00" value="${esc(valorCampo(d?.valor))}">`)}
       ${campo('Data *', `<input type="date" name="data" value="${esc(d?.data || hojeISO())}">`)}
     </div>
+    <div class="campo"><span class="sub">Forma de pagamento *</span>
+      <div class="segmento" style="margin-top:4px" id="formaDesp">
+        ${[['Pix', '💚 Pix'], ['Cartão', '💳 Cartão']].map(([v, t]) => `<button type="button" data-forma="${v}" class="${d?.forma_pagamento === v ? 'ativo' : ''}">${t}</button>`).join('')}
+      </div></div>
     ${campo('Descrição', `<input type="text" name="descricao" value="${esc(d?.descricao)}">`)}
     <div class="acoes">
       ${d ? '<button type="button" class="btn perigo" id="excluir">🗑 Excluir</button>' : ''}
       <button type="submit" class="btn prim">Salvar</button>
     </div></form>`;
   const f = $('#f');
+  let forma = d?.forma_pagamento || '';
+  $$('[data-forma]', f).forEach((b) => b.addEventListener('click', () => {
+    forma = b.dataset.forma;
+    $$('[data-forma]', f).forEach((x) => x.classList.toggle('ativo', x === b));
+  }));
   f.addEventListener('submit', (e) => {
     e.preventDefault();
     const nome = f.elements.nome.value.trim(), valor = f.elements.valor.value.trim(), data = f.elements.data.value;
     if (!nome || !valor || !data) return toast('Preencha nome, valor e data.');
-    Dados.gravar('despesas', uid, { nome, valor: lerValor(valor), data, descricao: f.elements.descricao.value.trim(), ...(d ? {} : { criado_em: agoraSQL() }) });
+    if (!forma) return toast('Escolha a forma de pagamento: Pix ou Cartão.');
+    Dados.gravar('despesas', uid, { nome, valor: lerValor(valor), data, forma_pagamento: forma, descricao: f.elements.descricao.value.trim(), ...(d ? {} : { criado_em: agoraSQL() }) });
     formAberto = false;
     toast('Despesa salva');
     voltar('#/despesas');
