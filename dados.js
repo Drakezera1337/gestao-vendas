@@ -116,7 +116,7 @@ const Dados = (() => {
 })();
 
 // ─── Regras do negócio (as mesmas telas/consultas do programa do PC) ──────────
-const PLATAFORMAS = ['PS3', 'PS4', 'PS5', 'Xbox One S', 'Xbox Series S', 'Xbox Series X', 'Nintendo Switch'];
+const PLATAFORMAS = ['PS3', 'PS4', 'PS5', 'Xbox One S', 'Xbox One X', 'Xbox Series S', 'Xbox Series X', 'Nintendo Switch'];
 const ARMAZ = ['8 GB', '16 GB', '32 GB', '64 GB', '128 GB', '256 GB', '512 GB', '1 TB'];
 const BATS = Array.from({ length: 51 }, (_, i) => `${100 - i}%`);
 const STATUS_ITEM = ['', 'Aguardando venda', 'Chegando', 'Aguardando envio'];
