@@ -635,10 +635,12 @@ function vForm(r) {
   // ── lote ──
   function desenharUnidades() {
     $('#unidades').innerHTML = unidades.map((u, i) => `<div class="unidade">
-      <span>${i + 2}ª</span>
-      <input type="date" data-u="${i}" data-c="data" value="${esc(u.data)}" aria-label="Data da ${i + 2}ª unidade">
-      <input type="text" inputmode="decimal" data-u="${i}" data-c="preco" value="${esc(u.preco)}" aria-label="Preço da ${i + 2}ª unidade">
-      <button type="button" class="btn x" data-rem="${i}" aria-label="Remover">✕</button></div>`).join('');
+      <div class="unidade-cab"><span>${i + 2}ª unidade</span>
+        <button type="button" class="btn x" data-rem="${i}" aria-label="Remover a ${i + 2}ª unidade">✕</button></div>
+      <div class="unidade-campos">
+        <input type="date" data-u="${i}" data-c="data" value="${esc(u.data)}" aria-label="Data da ${i + 2}ª unidade">
+        <input type="text" inputmode="decimal" placeholder="0,00" data-u="${i}" data-c="preco" value="${esc(u.preco)}" aria-label="Preço da ${i + 2}ª unidade">
+      </div></div>`).join('');
     $$('[data-u]', f).forEach((inp) => inp.addEventListener('input', () => { unidades[inp.dataset.u][inp.dataset.c] = inp.value; }));
     $$('[data-rem]', f).forEach((b) => b.addEventListener('click', () => {
       unidades.splice(Number(b.dataset.rem), 1);

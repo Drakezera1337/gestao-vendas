@@ -6,6 +6,7 @@
   --campo: #FFFFFF; --sombra: 0 1px 2px rgba(0,0,0,.06);
   --raio: 12px;
   --seguro-baixo: env(safe-area-inset-bottom, 0px);
+  --abas: 56px; /* altura da barra de baixo (sem a área do gesto do iPhone) */
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -24,7 +25,7 @@ html, body { margin: 0; }
 body {
   background: var(--bg); color: var(--texto);
   font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  padding-bottom: calc(64px + var(--seguro-baixo));
+  padding-bottom: calc(var(--abas) + var(--seguro-baixo));
 }
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: inherit; }
@@ -58,8 +59,8 @@ a { color: inherit; }
   padding-bottom: var(--seguro-baixo);
 }
 .abas a {
-  display: flex; flex-direction: column; align-items: center; gap: 1px;
-  padding: 7px 0 8px; font-size: 11px; color: var(--sec); text-decoration: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  height: var(--abas); font-size: 11px; color: var(--sec); text-decoration: none;
 }
 .abas a span { font-size: 19px; filter: grayscale(1); opacity: .7; }
 .abas a.ativa { color: var(--azul); font-weight: 600; }
@@ -138,7 +139,7 @@ main { max-width: 760px; margin: 0 auto; padding: 14px 16px 24px; }
 .neg { color: var(--verm) !important; }
 
 .fab {
-  position: fixed; right: 18px; bottom: calc(78px + var(--seguro-baixo)); z-index: 15;
+  position: fixed; right: 18px; bottom: calc(var(--abas) + 14px + var(--seguro-baixo)); z-index: 15;
   width: 56px; height: 56px; border-radius: 50%; border: 0;
   background: var(--topo); color: #fff; font-size: 28px; line-height: 1; cursor: pointer;
   box-shadow: 0 4px 14px rgba(0,0,0,.25);
@@ -161,12 +162,19 @@ main { max-width: 760px; margin: 0 auto; padding: 14px 16px 24px; }
 .parcela .info small { display: block; color: var(--sec); font-size: 12px; }
 
 /* ── formulários ──────────────────────────────────────────────────────── */
-label.campo { display: block; margin-top: 12px; }
-label.campo > span { display: block; font-size: 12.5px; color: var(--sec); margin-bottom: 4px; }
+/* legenda em cima, caixa sempre no pé: numa linha com duas colunas as caixas ficam alinhadas
+   mesmo quando uma legenda quebra em duas linhas */
+label.campo { display: flex; flex-direction: column; min-width: 0; margin-top: 12px; }
+label.campo > span { flex: 1 0 auto; font-size: 12.5px; color: var(--sec); margin-bottom: 4px; }
 input[type=text], input[type=tel], input[type=date], input[type=number], input[type=password], input[type=search], select, textarea {
-  width: 100%; min-height: 44px; padding: 9px 11px;
+  width: 100%; min-width: 0; max-width: 100%; min-height: 44px; padding: 9px 11px;
   background: var(--campo); border: 1px solid var(--borda); border-radius: 10px; font-size: 16px;
 }
+input:not([type=checkbox]), select { height: 44px; }
+/* iPhone: o campo de data nativo tem largura mínima própria (invadia a coluna do lado e a
+   borda do cartão) e muda de altura quando está vazio */
+input[type=date] { -webkit-appearance: none; appearance: none; display: block; text-align: left; line-height: 24px; }
+input[type=date]::-webkit-date-and-time-value { text-align: left; margin: 0; min-height: 24px; }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--azul); outline-offset: -1px; }
 .duas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 10px; }
 .check { display: flex; align-items: center; gap: 10px; margin-top: 12px; min-height: 40px; cursor: pointer; }
@@ -175,8 +183,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--azul); outl
 .bloco { margin-top: 14px; padding: 4px 14px 14px; }
 .bloco > .titulo { font-size: 12.5px; font-weight: 700; color: var(--sec); margin-top: 10px; text-transform: uppercase; letter-spacing: .04em; }
 .oculto { display: none !important; }
-.unidade { display: grid; grid-template-columns: 30px minmax(0, 1.25fr) minmax(0, 1fr) 36px; gap: 6px; align-items: center; margin-top: 8px; }
-.unidade > span { font-size: 13px; color: var(--sec); text-align: right; }
+.unidade { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--borda); }
+.unidade-cab { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--sec); margin-bottom: 4px; }
+.unidade-campos { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 10px; }
 .pagamento { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 10px; align-items: center; }
 .pagamento .check { margin-top: 6px; }
 
@@ -194,7 +203,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--azul); outl
 
 #b_vendaTop { scroll-margin-top: 64px; }
 .rodape-form {
-  position: sticky; bottom: calc(64px + var(--seguro-baixo)); z-index: 10;
+  position: sticky; bottom: calc(var(--abas) + var(--seguro-baixo)); z-index: 10;
   margin: 16px -16px -24px; padding: 10px 16px 12px;
   background: var(--bg); border-top: 1px solid var(--borda);
 }
@@ -216,7 +225,7 @@ ol.passos li { margin: 6px 0; }
 .lista-mais a small { color: var(--sec); }
 
 #toast {
-  position: fixed; left: 50%; bottom: calc(84px + var(--seguro-baixo)); z-index: 30;
+  position: fixed; left: 50%; bottom: calc(var(--abas) + 20px + var(--seguro-baixo)); z-index: 30;
   transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
   background: #1A1A1A; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px;
   transition: .2s; max-width: calc(100% - 32px);
