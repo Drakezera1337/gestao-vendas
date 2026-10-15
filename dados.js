@@ -179,13 +179,16 @@ function nomeExibicao(p) {
 
 const custo = (p) => num(p.preco_compra) + num(p.custo_reparo);
 const vendido = (p) => num(p.preco_venda) > 0 && !!p.data_venda;
-const naListaEstoque = (p) => !p.data_venda && (!num(p.reparo) || (num(p.reparo) === 1 && !!p.data_entrega_rep));
-const naListaConserto = (p) => num(p.reparo) === 1 && !p.data_venda && !p.data_entrega_rep;
+// "Com defeito" (reparo=1): só vai para Em conserto depois de ter data de envio e volta para o
+// estoque quando tem data de entrega. Com defeito e sem envio continua no estoque. (Igual ao PC.)
+const naListaConserto = (p) => num(p.reparo) === 1 && !p.data_venda && !!p.data_envio_rep && !p.data_entrega_rep;
+const naListaEstoque = (p) => !p.data_venda && !naListaConserto(p);
+const comDefeito = (p) => num(p.reparo) === 1 && !p.data_envio_rep && !p.data_entrega_rep;
 
 function statusProduto(p) {
   if (num(p.preco_venda) && p.data_venda) return ['Vendido', 'vendido'];
   if (p.status_item) return [p.status_item, p.status_item === 'Chegando' ? 'chegando' : 'estoque'];
-  if (num(p.reparo)) return ['Conserto', 'conserto'];
+  if (comDefeito(p)) return ['Com defeito', 'defeito'];
   return ['Estoque', 'estoque'];
 }
 

@@ -108,7 +108,7 @@ function vInicio() {
 
   const parado = (cat) => {
     const est = P.filter((p) => p.categoria === cat && naListaEstoque(p)); // inclui os que voltaram do conserto
-    const con = P.filter((p) => p.categoria === cat && semVenda(p) && num(p.reparo) === 1 && !p.data_entrega_rep);
+    const con = P.filter((p) => p.categoria === cat && naListaConserto(p));
     return { nEst: est.length, vEst: soma(est, custo), nCon: con.length, vCon: soma(con, custo) };
   };
   const vendas = (cat, filtro) => {
@@ -135,7 +135,7 @@ function vInicio() {
   const clientes = new Set(P.filter((p) => (p.nome_comprador || '').trim() && p.data_venda).map((p) => p.nome_comprador.trim())).size;
 
   // estoque por plataforma / modelo (mesmas regras da dashboard do PC)
-  const reparoOk = (p) => !num(p.reparo) || (num(p.reparo) === 1 && p.data_entrega_rep);
+  const reparoOk = (p) => !naListaConserto(p);
   const agrupar = (lista, chave) => {
     const m = new Map();
     for (const p of lista) m.set(chave(p), (m.get(chave(p)) || 0) + 1);
@@ -305,7 +305,7 @@ function listarItens(modo, cat, periodo, nomeFiltro) {
       linhas = `<div class="linha"><span>${fmtData(p.data_compra)}</span><span>compra <b>${fmtBRL(custo(p))}</b></span>${pv ? `<span>venda <b>${fmtBRL(pv)}</b></span><span>lucro <b class="${cls(pv - custo(p))}">${fmtBRL(pv - custo(p))}</b></span>` : ''}</div>`;
     }
     return `<a class="card item" href="#/produto/${p.uid}">
-      <div class="item-topo"><span class="item-nome">${esc(nomeExibicao(p))}</span>${modo === 'compras' ? `<span class="tag ${stCls}">${esc(st)}</span>` : ''}</div>
+      <div class="item-topo"><span class="item-nome">${esc(nomeExibicao(p))}</span>${modo === 'compras' ? `<span class="tags"><span class="tag ${stCls}">${esc(st)}</span>${stCls !== 'defeito' && comDefeito(p) ? '<span class="tag defeito">⚠ Com defeito</span>' : ''}</span>` : ''}</div>
       ${detalhe(p) ? `<div class="linha"><span>${esc(detalhe(p))}</span></div>` : ''}
       ${linhas}</a>`;
   }).join('') : `<div class="vazio">${base.length ? 'Nada encontrado com esses filtros.' : 'Nenhum item aqui.'}</div>`;
@@ -340,7 +340,7 @@ function vProduto(r) {
 
   tela.innerHTML = `
     <div class="det-titulo">${esc(nomeExibicao(p))}</div>
-    <div class="sub">${eCel ? '📱 Celulares' : '🎮 Games'} · <span class="tag ${stCls}">${esc(st)}</span></div>
+    <div class="sub">${eCel ? '📱 Celulares' : '🎮 Games'} · <span class="tag ${stCls}">${esc(st)}</span>${stCls !== 'defeito' && comDefeito(p) ? ' <span class="tag defeito">⚠ Com defeito</span>' : ''}</div>
 
     <div class="secao" style="--cor:var(--azul)">📦 Produto</div>
     <div class="card det">
@@ -492,12 +492,13 @@ function vForm(r) {
         <div class="acoes" style="margin-top:10px"><button type="button" class="btn peq" id="maisUnidade">+ Outra unidade</button></div>
         <div class="sub" id="resumoLote" style="margin-top:8px;color:var(--azul)"></div>
       </div>`}
-      <label class="check"><input type="checkbox" name="reparo"> Precisa de conserto</label>
+      <label class="check"><input type="checkbox" name="reparo"> Com defeito</label>
       <div id="b_rep">
         <div class="duas">
           ${campo('Envio p/ conserto', entrada('data_envio_rep', 'date'))}
           ${campo('Entrega do conserto', entrada('data_entrega_rep', 'date'))}
         </div>
+        <div class="sub">Sem data de envio, o produto fica no Estoque marcado “Com defeito”. Com a data de envio, vai para Em conserto; com a data de entrega, volta para o Estoque.</div>
         ${campo('Custo do conserto (R$)', entrada('custo_reparo'))}
       </div>
     </div>
