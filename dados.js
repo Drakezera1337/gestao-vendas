@@ -183,7 +183,8 @@ const vendido = (p) => num(p.preco_venda) > 0 && !!p.data_venda;
 // estoque quando tem data de entrega. Com defeito e sem envio continua no estoque. (Igual ao PC.)
 const naListaConserto = (p) => num(p.reparo) === 1 && !p.data_venda && !!p.data_envio_rep && !p.data_entrega_rep;
 const naListaEstoque = (p) => !p.data_venda && !naListaConserto(p);
-const comDefeito = (p) => num(p.reparo) === 1 && !p.data_envio_rep && !p.data_entrega_rep;
+// a etiqueta "Com defeito" só some com "Consertado" marcado (há defeitos que não têm conserto)
+const comDefeito = (p) => num(p.reparo) === 1 && !num(p.consertado) && !naListaConserto(p);
 
 function statusProduto(p) {
   if (num(p.preco_venda) && p.data_venda) return ['Vendido', 'vendido'];

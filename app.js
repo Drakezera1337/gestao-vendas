@@ -392,6 +392,7 @@ function vProduto(r) {
       ${linhaDet('Custo do conserto', fmtBRL(p.custo_reparo))}
       ${linhaDet('Enviado em', fmtData(p.data_envio_rep))}
       ${linhaDet('Entregue em', fmtData(p.data_entrega_rep))}
+      ${linhaDet('Situação', num(p.consertado) ? '✅ Consertado' : '⚠ Com defeito (sem conserto)', num(p.consertado) ? 'pos' : 'neg')}
     </div>` : ''}
 
     <div class="acoes">
@@ -492,13 +493,16 @@ function vForm(r) {
         <div class="acoes" style="margin-top:10px"><button type="button" class="btn peq" id="maisUnidade">+ Outra unidade</button></div>
         <div class="sub" id="resumoLote" style="margin-top:8px;color:var(--azul)"></div>
       </div>`}
-      <label class="check"><input type="checkbox" name="reparo"> Com defeito</label>
+      <div class="checks">
+        <label class="check"><input type="checkbox" name="reparo"> Com defeito</label>
+        <label class="check" id="b_consertado"><input type="checkbox" name="consertado"> ✅ Consertado</label>
+      </div>
       <div id="b_rep">
         <div class="duas">
           ${campo('Envio p/ conserto', entrada('data_envio_rep', 'date'))}
           ${campo('Entrega do conserto', entrada('data_entrega_rep', 'date'))}
         </div>
-        <div class="sub">Sem data de envio, o produto fica no Estoque marcado “Com defeito”. Com a data de envio, vai para Em conserto; com a data de entrega, volta para o Estoque.</div>
+        <div class="sub">Sem data de envio, o produto fica no Estoque marcado “Com defeito”. Com a data de envio, vai para Em conserto; com a data de entrega, volta para o Estoque. A etiqueta “Com defeito” só sai quando “Consertado” estiver marcado.</div>
         ${campo('Custo do conserto (R$)', entrada('custo_reparo'))}
       </div>
     </div>
@@ -559,7 +563,7 @@ function vForm(r) {
     for (const n of ['preco_compra', 'custo_reparo', 'preco_venda', 'val_cartao', 'val_pix', 'val_dinheiro', 'val_fiado']) setV(n, valorCampo(p[n]));
     setV('ctrl_orig', num(p.ctrl_orig) || ''); setV('ctrl_para', num(p.ctrl_para) || '');
     setV('recebedor_tipo', p.recebedor_tipo || 'CPF');
-    for (const n of ['reparo', 'tem_cabos', 'pag_cartao', 'pag_pix', 'pag_dinheiro', 'pag_fiado']) setC(n, p[n]);
+    for (const n of ['reparo', 'consertado', 'tem_cabos', 'pag_cartao', 'pag_pix', 'pag_dinheiro', 'pag_fiado']) setC(n, p[n]);
     const cats = subCats(p);
     for (const c of ['console', 'acessorio', 'jogo']) setC(`c_${c}`, cats.includes(c));
   } else {
@@ -587,6 +591,7 @@ function vForm(r) {
       $('#b_plat').classList.toggle('oculto', !(c.c_console || c.c_acessorio || c.c_jogo));
     }
     $('#b_rep').classList.toggle('oculto', !el('reparo').checked);
+    $('#b_consertado').classList.toggle('oculto', !el('reparo').checked);
     $('#b_venda').classList.toggle('oculto', !el('data_venda').value);
     for (const k of ['cartao', 'pix', 'dinheiro', 'fiado']) {
       $(`[data-val="pag_${k}"]`).classList.toggle('oculto', !el(`pag_${k}`).checked);
@@ -695,6 +700,7 @@ function vForm(r) {
     const d = {
       nome, categoria: cat,
       reparo: el('reparo').checked ? 1 : 0,
+      consertado: el('reparo').checked && el('consertado').checked ? 1 : 0,
       custo_reparo: el('reparo').checked ? lerValor(el('custo_reparo').value) : 0,
       preco_venda: lerValor(el('preco_venda').value), data_venda: el('data_venda').value,
       observacoes: txt('observacoes'),
