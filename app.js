@@ -54,7 +54,7 @@ function render() {
   if (location.hash.startsWith('#cfg=')) return receberLinkConfig(location.hash);
   const r = rota();
   const mesma = r.chave === ultimaRota;
-  const y = window.scrollY;
+  const y = tela.scrollTop;
   ultimaRota = r.chave;
   formAberto = false;
   const [v, a] = r.partes;
@@ -63,7 +63,7 @@ function render() {
   const telas = { inicio: vInicio, lista: vLista, produto: vProduto, form: vForm, despesas: vDespesas,
     despesa: vDespesa, fiado: vFiado, clientes: vClientes, cliente: vCliente, mais: vMais, config: vConfig };
   (telas[v] || vInicio)(r);
-  window.scrollTo(0, mesma ? y : 0);
+  tela.scrollTo(0, mesma ? y : 0);
 }
 window.addEventListener('hashchange', render);
 
@@ -326,13 +326,19 @@ function vProduto(r) {
   const pv = num(p.preco_venda), luc = pv - custo(p);
   const margem = custo(p) ? (luc / custo(p)) * 100 : 0;
   const acess = [num(p.ctrl_orig) && `${p.ctrl_orig}x orig.`, num(p.ctrl_para) && `${p.ctrl_para}x paralelo`, num(p.tem_cabos) && 'Cabos'].filter(Boolean).join(', ');
+  const quem = (k) => {
+    const t = p[`rec_${k}_tipo`], n = p[`rec_${k}_nome`];
+    return t ? ` <span class="sub">(${esc(t === 'Dinheiro' || !n ? t : `${t} — ${n}`)})</span>` : '';
+  };
   const pags = [
-    num(p.pag_cartao) && `💳 Cartão${num(p.val_cartao) ? ` ${fmtBRL(p.val_cartao)}` : ''}`,
-    num(p.pag_pix) && `💚 Pix${num(p.val_pix) ? ` ${fmtBRL(p.val_pix)}` : ''}`,
+    num(p.pag_cartao) && `💳 Cartão${num(p.val_cartao) ? ` ${fmtBRL(p.val_cartao)}` : ''}${quem('cartao')}`,
+    num(p.pag_pix) && `💚 Pix${num(p.val_pix) ? ` ${fmtBRL(p.val_pix)}` : ''}${quem('pix')}`,
     num(p.pag_dinheiro) && `💵 Dinheiro${num(p.val_dinheiro) ? ` ${fmtBRL(p.val_dinheiro)}` : ''}`,
-    num(p.pag_fiado) && `🧾 Fiado${num(p.val_fiado) ? ` ${fmtBRL(p.val_fiado)}` : ''}`,
+    num(p.pag_fiado) && `🧾 Fiado${num(p.val_fiado) ? ` ${fmtBRL(p.val_fiado)}` : ''}${quem('fiado')}`,
   ].filter(Boolean).join('<br>');
-  const recebido = p.recebedor_tipo ? (p.recebedor_tipo === 'Dinheiro' || !p.recebedor_nome ? p.recebedor_tipo : `${p.recebedor_tipo} — ${p.recebedor_nome}`) : '';
+  // venda antiga, sem recebedor por forma de pagamento: mostra o recebedor único de antes
+  const recebido = p.recebedor_tipo && !['cartao', 'pix', 'fiado'].some((k) => p[`rec_${k}_tipo`])
+    ? (p.recebedor_tipo === 'Dinheiro' || !p.recebedor_nome ? p.recebedor_tipo : `${p.recebedor_tipo} — ${p.recebedor_nome}`) : '';
   const tel = (p.tel_comprador || '').replace(/\D/g, '');
   const parcelas = Dados.parcelasDe(p.uid);
   const hoje = hojeISO();
@@ -520,18 +526,18 @@ function vForm(r) {
         </div>
         <div class="titulo" style="margin-top:14px">Forma de pagamento</div>
         ${[['cartao', 'val_cartao', '💳 Cartão'], ['pix', 'val_pix', '💚 Pix'], ['dinheiro', 'val_dinheiro', '💵 Dinheiro'], ['fiado', 'val_fiado', '🧾 Fiado']]
-          .map(([k, v, t]) => `<div class="pagamento"><label class="check"><input type="checkbox" name="pag_${k}"> ${t}</label>
-            <div data-val="pag_${k}">${entrada(v, 'text', `aria-label="Valor ${t}"`)}</div></div>`).join('')}
+          .map(([k, v, t]) => `<div class="forma"><div class="pagamento"><label class="check"><input type="checkbox" name="pag_${k}"> ${t}</label>
+            <div data-val="pag_${k}">${entrada(v, 'text', `aria-label="Valor ${t}"`)}</div></div>
+            ${k === 'dinheiro' ? '' : `<div class="duas" data-rec="${k}">
+              ${campo('Recebido por', `<select name="rec_${k}_tipo">${opcoes(k === 'fiado' ? ['CPF', 'CNPJ', 'Dinheiro'] : ['CPF', 'CNPJ'])}</select>`)}
+              ${campo('Nome do recebedor', entrada(`rec_${k}_nome`), `data-recnome="${k}"`)}
+            </div>`}</div>`).join('')}
         <div id="b_fiado">
           <div id="b_fiadoNovo"><div class="duas">
             ${campo('Nº de parcelas', '<input type="number" id="nParcelas" min="1" max="48" value="2" inputmode="numeric">')}
             ${campo('Vencimento da 1ª', '<input type="date" id="venc1">')}
           </div><div class="sub">As parcelas são geradas mensalmente a partir dessa data, ao salvar.</div></div>
           <div id="b_fiadoInfo" class="aviso"></div>
-        </div>
-        <div class="duas">
-          ${campo('Recebido por', `<select name="recebedor_tipo">${opcoes(['CPF', 'CNPJ', 'Dinheiro'])}</select>`)}
-          ${campo('Nome do recebedor', entrada('recebedor_nome'), 'id="b_recNome"')}
         </div>
       </div>
     </div>
@@ -559,16 +565,21 @@ function vForm(r) {
   if (p) {
     for (const n of ['nome', 'armazenamento', 'saude_bateria', 'plataforma', 'num_serie', 'console_nome', 'jogos_desc',
       'data_compra', 'data_envio_rep', 'data_entrega_rep', 'data_venda', 'nome_comprador', 'tel_comprador',
-      'recebedor_nome', 'observacoes', 'status_item']) setV(n, p[n]);
+      'observacoes', 'status_item']) setV(n, p[n]);
     for (const n of ['preco_compra', 'custo_reparo', 'preco_venda', 'val_cartao', 'val_pix', 'val_dinheiro', 'val_fiado']) setV(n, valorCampo(p[n]));
     setV('ctrl_orig', num(p.ctrl_orig) || ''); setV('ctrl_para', num(p.ctrl_para) || '');
-    setV('recebedor_tipo', p.recebedor_tipo || 'CPF');
+    // recebedor de cada forma (venda antiga sem ele: sugere o recebedor único de antes)
+    for (const k of ['cartao', 'pix', 'fiado']) {
+      const t = p[`rec_${k}_tipo`], lt = p.recebedor_tipo || '';
+      const leg = ['CPF', 'CNPJ'].includes(lt) || (k === 'fiado' && lt === 'Dinheiro') ? lt : '';
+      setV(`rec_${k}_tipo`, t || leg || 'CPF');
+      setV(`rec_${k}_nome`, p[`rec_${k}_nome`] || (!t && ['CPF', 'CNPJ'].includes(leg) ? p.recebedor_nome : '') || '');
+    }
     for (const n of ['reparo', 'consertado', 'tem_cabos', 'pag_cartao', 'pag_pix', 'pag_dinheiro', 'pag_fiado']) setC(n, p[n]);
     const cats = subCats(p);
     for (const c of ['console', 'acessorio', 'jogo']) setC(`c_${c}`, cats.includes(c));
   } else {
     setV('data_compra', hojeISO());
-    setV('recebedor_tipo', 'CPF');
   }
   if (vender && !el('data_venda').value) setV('data_venda', hojeISO());
 
@@ -600,7 +611,10 @@ function vForm(r) {
     $('#b_fiado').classList.toggle('oculto', !fiado);
     $('#b_fiadoNovo').classList.toggle('oculto', parcelasGeradas);
     $('#b_fiadoInfo').classList.toggle('oculto', !parcelasGeradas);
-    $('#b_recNome').classList.toggle('oculto', el('recebedor_tipo').value === 'Dinheiro');
+    for (const k of ['cartao', 'pix', 'fiado']) {
+      $(`[data-rec="${k}"]`).classList.toggle('oculto', !el(`pag_${k}`).checked);
+      $(`[data-recnome="${k}"]`).classList.toggle('oculto', el(`rec_${k}_tipo`).value === 'Dinheiro');
+    }
     if ($('#lote')) $('#b_lote').classList.toggle('oculto', !$('#lote').checked);
     calcular();
   }
@@ -714,8 +728,12 @@ function vForm(r) {
       data_entrega_rep: el('reparo').checked ? el('data_entrega_rep').value : '',
       plataforma: eCel ? '' : el('plataforma').value, num_serie: eCel ? '' : txt('num_serie'),
       status_item: el('status_item').value,
-      recebedor_tipo: el('recebedor_tipo').value, recebedor_nome: el('recebedor_tipo').value === 'Dinheiro' ? '' : txt('recebedor_nome'),
     };
+    for (const k of ['cartao', 'pix', 'fiado']) {
+      const tipo = el(`pag_${k}`).checked ? el(`rec_${k}_tipo`).value : '';
+      d[`rec_${k}_tipo`] = tipo;
+      d[`rec_${k}_nome`] = tipo && tipo !== 'Dinheiro' ? txt(`rec_${k}_nome`) : '';
+    }
     for (const k of ['cartao', 'pix', 'dinheiro', 'fiado']) {
       const marcado = el(`pag_${k}`).checked;
       d[`pag_${k}`] = marcado ? 1 : 0;

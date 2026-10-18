@@ -21,11 +21,14 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; }
+/* Estrutura fixa: topo + miolo que rola + barra de baixo. A página em si não rola —
+   no iPhone, barras "position: fixed" numa página que rola às vezes se soltam e param no
+   meio da tela (principalmente depois de abrir/fechar o teclado). */
+html, body { margin: 0; height: 100%; overflow: hidden; }
 body {
+  display: flex; flex-direction: column; height: 100dvh;
   background: var(--bg); color: var(--texto);
   font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  padding-bottom: calc(var(--abas) + var(--seguro-baixo));
 }
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: inherit; }
@@ -33,7 +36,7 @@ a { color: inherit; }
 
 /* ── topo ─────────────────────────────────────────────────────────────── */
 .topo {
-  position: sticky; top: 0; z-index: 20;
+  flex-shrink: 0; z-index: 20;
   display: flex; align-items: center; gap: 8px;
   padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
   background: var(--topo); color: var(--topo-texto);
@@ -53,7 +56,7 @@ a { color: inherit; }
 
 /* ── abas ─────────────────────────────────────────────────────────────── */
 .abas {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  flex-shrink: 0; z-index: 20;
   display: grid; grid-template-columns: repeat(5, 1fr);
   background: var(--card); border-top: 1px solid var(--borda);
   padding-bottom: var(--seguro-baixo);
@@ -66,7 +69,10 @@ a { color: inherit; }
 .abas a.ativa { color: var(--azul); font-weight: 600; }
 .abas a.ativa span { filter: none; opacity: 1; }
 
-main { max-width: 760px; margin: 0 auto; padding: 14px 16px 24px; }
+main {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  padding: 14px max(16px, calc((100% - 728px) / 2)) 24px;
+}
 
 /* ── blocos ───────────────────────────────────────────────────────────── */
 .secao { margin: 18px 0 8px; font-size: 13px; font-weight: 700; color: var(--sec); text-transform: uppercase; letter-spacing: .04em; display: flex; align-items: center; gap: 8px; }
@@ -190,6 +196,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--azul); outl
 .unidade-campos { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 10px; }
 .pagamento { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 10px; align-items: center; }
 .pagamento .check { margin-top: 6px; }
+.forma { padding-bottom: 8px; border-bottom: 1px dashed var(--borda); }
+.forma:last-of-type { border-bottom: 0; }
+.forma [data-rec] label.campo { margin-top: 4px; }
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
@@ -203,9 +212,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--azul); outl
 .btn.x { min-height: 36px; width: 36px; padding: 0; color: var(--verm); font-size: 16px; }
 .btn:disabled { opacity: .5; }
 
-#b_vendaTop { scroll-margin-top: 64px; }
+#b_vendaTop { scroll-margin-top: 12px; }
 .rodape-form {
-  position: sticky; bottom: calc(var(--abas) + var(--seguro-baixo)); z-index: 10;
+  position: sticky; bottom: -24px; z-index: 10; /* encosta no fim do miolo (o padding de baixo é 24px) */
   margin: 16px -16px -24px; padding: 10px 16px 12px;
   background: var(--bg); border-top: 1px solid var(--borda);
 }
