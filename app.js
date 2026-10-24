@@ -142,10 +142,11 @@ function vInicio() {
     return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   };
   const consoles = P.filter((p) => p.categoria === 'games' && semVenda(p) && (p.sub_cats || '').includes('console') && p.plataforma);
-  const platEst = agrupar(consoles.filter((p) => reparoOk(p) && p.status_item === 'Aguardando venda'), (p) => p.plataforma);
+  // prontos para venda: com defeito (sem "Consertado") não entra
+  const platEst = agrupar(consoles.filter((p) => reparoOk(p) && !comDefeito(p) && p.status_item === 'Aguardando venda'), (p) => p.plataforma);
   const platCheg = agrupar(consoles.filter((p) => p.status_item === 'Chegando'), (p) => p.plataforma);
   const iph = P.filter((p) => p.categoria === 'celulares' && semVenda(p));
-  const iphEst = agrupar(iph.filter((p) => reparoOk(p) && p.status_item === 'Aguardando venda'), (p) => p.nome);
+  const iphEst = agrupar(iph.filter((p) => reparoOk(p) && !comDefeito(p) && p.status_item === 'Aguardando venda'), (p) => p.nome);
   const iphCheg = agrupar(iph.filter((p) => p.status_item === 'Chegando'), (p) => p.nome);
   const chips = (lista, href, chegando, vazio) => (lista.length
     ? `<div class="chips">${lista.map(([nome, n]) => `<a class="chip ${chegando ? 'chegando' : n < 2 ? 'baixo' : ''}" href="${href(nome)}">
@@ -181,10 +182,10 @@ function vInicio() {
 
     <div class="secao" style="--cor:var(--azul)">📦 Estoque</div>
     <div class="card pad">
-      <div class="sub" style="margin-bottom:6px">Consoles aguardando venda (vermelho = menos de 2)</div>
+      <div class="sub" style="margin-bottom:6px">Consoles prontos para venda (vermelho = menos de 2; com defeito não entra)</div>
       ${chips(platEst, hrefPlat, false, 'Nenhum console aguardando venda')}
       ${platCheg.length ? `<div class="sub" style="margin:12px 0 6px">Consoles chegando</div>${chips(platCheg, hrefPlat, true)}` : ''}
-      <div class="sub" style="margin:14px 0 6px">iPhones aguardando venda</div>
+      <div class="sub" style="margin:14px 0 6px">iPhones prontos para venda</div>
       ${chips(iphEst, hrefIph, false, 'Nenhum iPhone aguardando venda')}
       ${iphCheg.length ? `<div class="sub" style="margin:12px 0 6px">iPhones chegando</div>${chips(iphCheg, hrefIph, true)}` : ''}
     </div>`;
