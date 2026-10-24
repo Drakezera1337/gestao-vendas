@@ -373,6 +373,8 @@ function vProduto(r) {
       ${pv ? linhaDet('Margem', `${margem.toFixed(1).replace('.', ',')}%`, cls(luc)) : ''}
     </div>
 
+    ${blocoTroca(p, luc)}
+
     ${temComprador ? `<div class="secao" style="--cor:var(--verde)">🧑 Comprador</div>
     <div class="card det">
       ${linhaDet('Nome', p.nome_comprador ? `<a href="#/cliente?nome=${encodeURIComponent(p.nome_comprador.trim())}">${esc(p.nome_comprador)}</a>` : '')}
@@ -424,10 +426,42 @@ function vProduto(r) {
   });
 }
 
+// Troca: aparelhos que entraram como base de troca nesta venda (troca_de = uid da venda) e o lucro
+// total da operação; ou, num aparelho que veio de troca, de qual venda ele veio.
+function blocoTroca(p, lucroVenda) {
+  const entrou = Dados.produtos().filter((x) => x.troca_de === p.uid);
+  const veio = p.troca_de ? Dados.produto(p.troca_de) : null;
+  if (!entrou.length && !veio) return '';
+  let total = lucroVenda, pendentes = 0;
+  const linhas = entrou.map((x) => {
+    const l = num(x.preco_venda) - custo(x);
+    if (vendido(x)) {
+      total += l;
+      return linhaDet('Entrou na troca', `<a href="#/produto/${x.uid}">${esc(nomeExibicao(x))}</a><br><span class="sub">custo ${fmtBRL(custo(x))} → vendido em ${fmtData(x.data_venda)} por ${fmtBRL(x.preco_venda)}</span> <span class="${cls(l)}">(lucro ${fmtBRL(l)})</span>`);
+    }
+    pendentes++;
+    return linhaDet('Entrou na troca', `<a href="#/produto/${x.uid}">${esc(nomeExibicao(x))}</a><br><span class="sub">custo ${fmtBRL(custo(x))} — ainda em estoque</span>`);
+  }).join('');
+  return `<div class="secao" style="--cor:var(--azul)">🔁 Troca</div>
+    <div class="card det">
+      ${veio ? linhaDet('Entrou na troca da venda de', `<a href="#/produto/${veio.uid}">${esc(nomeExibicao(veio))}</a> <span class="sub">(${fmtData(veio.data_venda)})</span>`) : ''}
+      ${linhas}
+      ${entrou.length ? linhaDet('Lucro total da troca', `${fmtBRL(total)}${pendentes ? ' <span class="sub">(+ o que vender do que está em estoque)</span>' : ''}`, `forte ${cls(total)}`) : ''}
+    </div>`;
+}
+
 // ─── Cadastro / edição de produto ───────────────────────────────────────────
 const opcoes = (lista, atual) => lista.map((o) => `<option value="${esc(o)}" ${o === atual ? 'selected' : ''}>${esc(o) || '—'}</option>`).join('');
 const campo = (rotulo, html, extra = '') => `<label class="campo" ${extra}><span>${rotulo}</span>${html}</label>`;
 const entrada = (nome, tipo = 'text', attrs = '') => `<input type="${tipo}" name="${nome}" ${tipo === 'text' && /preco|custo|val_/.test(nome) ? 'inputmode="decimal" placeholder="0,00"' : ''} ${attrs}>`;
+
+// vendas recentes (e a já ligada, se for antiga) para escolher de qual troca o aparelho veio
+function opcoesTroca(p) {
+  let vendas = Dados.produtos().filter((x) => vendido(x) && x.uid !== p?.uid)
+    .sort((a, b) => b.data_venda.localeCompare(a.data_venda)).slice(0, 80);
+  if (p?.troca_de && !vendas.some((x) => x.uid === p.troca_de) && Dados.produto(p.troca_de)) vendas.push(Dados.produto(p.troca_de));
+  return vendas.map((x) => `<option value="${x.uid}" ${x.uid === p?.troca_de ? 'selected' : ''}>${fmtData(x.data_venda)} — ${esc(nomeExibicao(x).slice(0, 40))} — ${fmtBRL(x.preco_venda)}</option>`).join('');
+}
 
 function nomeGerado(f) {
   const partes = [];
@@ -503,6 +537,8 @@ function vForm(r) {
         <div class="acoes" style="margin-top:10px"><button type="button" class="btn peq" id="maisUnidade">+ Outra unidade</button></div>
         <div class="sub" id="resumoLote" style="margin-top:8px;color:var(--azul)"></div>
       </div>`}
+      <label class="check"><input type="checkbox" id="troca"> Entrou como base de troca</label>
+      <div id="b_troca" class="oculto">${campo('Na venda de', `<select name="troca_de">${opcoesTroca(p)}</select>`)}</div>
       <div class="checks">
         <label class="check"><input type="checkbox" name="reparo"> Com defeito</label>
         <label class="check" id="b_consertado"><input type="checkbox" name="consertado"> ✅ Consertado</label>
@@ -583,6 +619,7 @@ function vForm(r) {
     const cats = subCats(p);
     for (const c of ['console', 'acessorio', 'jogo', 'servico']) setC(`c_${c}`, cats.includes(c));
     setV('servico_desc', p.servico_desc);
+    if (p.troca_de) $('#troca').checked = true;
   } else {
     setV('data_compra', hojeISO());
   }
@@ -609,6 +646,7 @@ function vForm(r) {
       $('#b_plat').classList.toggle('oculto', !(c.c_console || c.c_acessorio || c.c_jogo || c.c_servico));
     }
     $('#b_rep').classList.toggle('oculto', !el('reparo').checked);
+    $('#b_troca').classList.toggle('oculto', !$('#troca').checked);
     $('#b_consertado').classList.toggle('oculto', !el('reparo').checked);
     $('#b_venda').classList.toggle('oculto', !el('data_venda').value);
     for (const k of ['cartao', 'pix', 'dinheiro', 'fiado']) {
@@ -681,6 +719,11 @@ function vForm(r) {
     $('#maisUnidade').addEventListener('click', novaUnidade);
   }
 
+  $('#troca').addEventListener('change', () => {
+    if (!$('#troca').checked || p?.troca_de) return;
+    const mesmoDia = Dados.produtos().find((x) => vendido(x) && x.data_venda === el('data_compra').value && x.uid !== p?.uid);
+    if (mesmoDia) el('troca_de').value = mesmoDia.uid; // sugere a venda do mesmo dia da compra
+  });
   $('#cancelar').addEventListener('click', () => voltar());
   atualizarBlocos();
   if (vender) setTimeout(() => $('#b_vendaTop').scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -731,6 +774,7 @@ function vForm(r) {
       ctrl_orig: c.ctrl_orig || 0, ctrl_para: c.ctrl_para || 0, tem_cabos: c.tem_cabos ? 1 : 0,
       jogos_desc: eCel ? '' : txt('jogos_desc'),
       servico_desc: !eCel && c.c_servico ? txt('servico_desc') : '',
+      troca_de: $('#troca').checked ? el('troca_de').value : '',
       nome_comprador: txt('nome_comprador'), tel_comprador: txt('tel_comprador'),
       data_envio_rep: el('reparo').checked ? el('data_envio_rep').value : '',
       data_entrega_rep: el('reparo').checked ? el('data_entrega_rep').value : '',
@@ -754,7 +798,7 @@ function vForm(r) {
         uids.push(Dados.gravar('produtos', p.uid, { ...d, data_compra: dc, preco_compra: lerValor(pcTxt) }));
       } else {
         unid.forEach((u, i) => uids.push(Dados.gravar('produtos', null, {
-          ...d, data_compra: u.data, preco_compra: u.preco, num_serie: i ? '' : d.num_serie, criado_em: agoraSQL(),
+          ...d, data_compra: u.data, preco_compra: u.preco, num_serie: i ? '' : d.num_serie, troca_de: i ? '' : d.troca_de, criado_em: agoraSQL(),
         })));
       }
       for (const uid of uids) {
