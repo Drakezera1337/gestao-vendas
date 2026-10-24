@@ -153,13 +153,14 @@ const valorCampo = (v) => (num(v) ? String(num(v)).replace('.', ',') : '');
 function subCats(p) {
   try { return JSON.parse(p.sub_cats || '[]') || []; } catch { return []; }
 }
-const NOMES_CAT = { console: 'Console', acessorio: 'Acessório', jogo: 'Jogo' };
+const NOMES_CAT = { console: 'Console', acessorio: 'Acessório', jogo: 'Jogo', servico: 'Serviço' };
 const subTxt = (p) => subCats(p).map((c) => NOMES_CAT[c]).filter(Boolean).join(', ') || '—';
 
 // Nome mostrado nas listas (mesma regra do _nome_produto do PC)
 function nomeExibicao(p) {
   if (p.categoria === 'celulares') return p.nome || '—';
   const cats = subCats(p);
+  if (cats.includes('servico')) return p.nome || '—'; // o nome salvo já junta tudo (inclui o serviço)
   const temConsole = cats.includes('console') && p.console_nome;
   const temJogo = cats.includes('jogo') && p.jogos_desc;
   const temAcess = cats.includes('acessorio');

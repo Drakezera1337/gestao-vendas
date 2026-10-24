@@ -219,7 +219,7 @@ function vLista(r) {
     </div>` : ''}
     ${nomeFiltro ? `<div class="aviso">Mostrando só: <b>${esc(nomeFiltro)}</b> · <a href="${href(cat)}">ver todos</a></div>` : ''}
     <div class="filtros">
-      ${games ? `<select id="fcat" aria-label="Categoria">${['Todos', 'Console', 'Acessório', 'Jogo'].map((o) => `<option ${o === filtroLista.fcat ? 'selected' : ''}>${o}</option>`).join('')}</select>
+      ${games ? `<select id="fcat" aria-label="Categoria">${['Todos', 'Console', 'Acessório', 'Jogo', 'Serviço'].map((o) => `<option ${o === filtroLista.fcat ? 'selected' : ''}>${o}</option>`).join('')}</select>
       <select id="fplat" aria-label="Plataforma">${['Todas', ...PLATAFORMAS].map((o) => `<option ${o === filtroLista.fplat ? 'selected' : ''}>${o}</option>`).join('')}</select>` : ''}
       <div class="busca"><input type="search" id="busca" placeholder="Buscar" value="${esc(filtroLista.busca)}" autocomplete="off"></div>
     </div>
@@ -253,7 +253,7 @@ function listarItens(modo, cat, periodo, nomeFiltro) {
   } else base = base.filter(naListaConserto).sort((a, b) => (b.data_compra || '').localeCompare(a.data_compra || ''));
 
   const { busca, fcat, fplat } = filtroLista;
-  const mapa = { Console: 'console', Acessório: 'acessorio', Jogo: 'jogo' };
+  const mapa = { Console: 'console', Acessório: 'acessorio', Jogo: 'jogo', Serviço: 'servico' };
   const termo = busca.trim().toLowerCase();
   const itens = base.filter((p) => {
     if (cat === 'games' && fcat !== 'Todos' && !subCats(p).includes(mapa[fcat])) return false;
@@ -355,6 +355,7 @@ function vProduto(r) {
       ${!eCel && cats.includes('console') ? linhaDet('Console', esc(p.console_nome || p.plataforma)) : ''}
       ${!eCel && cats.includes('acessorio') ? linhaDet('Acessórios', esc(acess)) : ''}
       ${!eCel && cats.includes('jogo') ? linhaDet('Jogos', esc(p.jogos_desc)) : ''}
+      ${!eCel && cats.includes('servico') ? linhaDet('Serviço', esc(p.servico_desc || 'Sim')) : ''}
       ${eCel ? linhaDet('Armazenamento', esc(p.armazenamento)) + linhaDet('Saúde da bateria', esc(p.saude_bateria)) : ''}
       ${linhaDet('Status', esc(p.status_item))}
       ${linhaDet('Observações', esc(p.observacoes))}
@@ -440,6 +441,7 @@ function nomeGerado(f) {
     if (ac.length) partes.push(ac.join(', '));
   }
   if (f.c_jogo && f.jogos_desc) partes.push(f.jogos_desc);
+  if (f.c_servico && f.servico_desc) partes.push(f.servico_desc);
   return partes.join(' | ') || 'Games';
 }
 
@@ -469,6 +471,7 @@ function vForm(r) {
         <label class="check"><input type="checkbox" name="c_console"> Console</label>
         <label class="check"><input type="checkbox" name="c_acessorio"> Acessório</label>
         <label class="check"><input type="checkbox" name="c_jogo"> Jogo</label>
+        <label class="check"><input type="checkbox" name="c_servico"> Serviço</label>
       </div>
       ${campo('Plataforma', `<select name="plataforma">${opcoes(['', ...PLATAFORMAS])}</select>`, 'id="b_plat"')}
       <div id="b_console"><div class="duas">
@@ -484,6 +487,7 @@ function vForm(r) {
         ${campo('Descrição do acessório (ex: Headset, Fonte…)', entrada('acess_desc'))}
       </div>
       <div id="b_jogo">${campo('Jogos (separe por vírgula)', entrada('jogos_desc'))}</div>
+      <div id="b_servico">${campo('Descrição do serviço (ex: Desbloqueio, Troca de HDMI)', entrada('servico_desc'))}</div>
     </div>`}
 
     <div class="card bloco">
@@ -577,7 +581,8 @@ function vForm(r) {
     }
     for (const n of ['reparo', 'consertado', 'tem_cabos', 'pag_cartao', 'pag_pix', 'pag_dinheiro', 'pag_fiado']) setC(n, p[n]);
     const cats = subCats(p);
-    for (const c of ['console', 'acessorio', 'jogo']) setC(`c_${c}`, cats.includes(c));
+    for (const c of ['console', 'acessorio', 'jogo', 'servico']) setC(`c_${c}`, cats.includes(c));
+    setV('servico_desc', p.servico_desc);
   } else {
     setV('data_compra', hojeISO());
   }
@@ -586,6 +591,7 @@ function vForm(r) {
   // nome gerado ao abrir: se nada da descrição mudar, o nome atual é mantido (a descrição do acessório não fica salva)
   const ler = () => ({
     c_console: el('c_console')?.checked, c_acessorio: el('c_acessorio')?.checked, c_jogo: el('c_jogo')?.checked,
+    c_servico: el('c_servico')?.checked, servico_desc: el('servico_desc')?.value.trim(),
     console_nome: el('console_nome')?.value.trim(), acess_desc: el('acess_desc')?.value.trim(),
     ctrl_orig: Math.trunc(num(el('ctrl_orig')?.value)), ctrl_para: Math.trunc(num(el('ctrl_para')?.value)),
     tem_cabos: el('tem_cabos')?.checked, jogos_desc: el('jogos_desc')?.value.trim(),
@@ -599,7 +605,8 @@ function vForm(r) {
       $('#b_console').classList.toggle('oculto', !c.c_console);
       $('#b_acess').classList.toggle('oculto', !c.c_acessorio);
       $('#b_jogo').classList.toggle('oculto', !c.c_jogo);
-      $('#b_plat').classList.toggle('oculto', !(c.c_console || c.c_acessorio || c.c_jogo));
+      $('#b_servico').classList.toggle('oculto', !c.c_servico);
+      $('#b_plat').classList.toggle('oculto', !(c.c_console || c.c_acessorio || c.c_jogo || c.c_servico));
     }
     $('#b_rep').classList.toggle('oculto', !el('reparo').checked);
     $('#b_consertado').classList.toggle('oculto', !el('reparo').checked);
@@ -709,7 +716,7 @@ function vForm(r) {
       if (unid.length > 1 && !confirm(`Serão cadastradas ${unid.length} unidades:\n\n${unid.map((u, i) => `${i + 1}ª — ${fmtData(u.data)} — ${fmtBRL(u.preco)}`).join('\n')}\n\nTotal: ${fmtBRL(soma(unid, (u) => u.preco))}\n\nConfirmar?`)) return;
     }
 
-    const sc = eCel ? [] : ['console', 'acessorio', 'jogo'].filter((k) => c[`c_${k}`]);
+    const sc = eCel ? [] : ['console', 'acessorio', 'jogo', 'servico'].filter((k) => c[`c_${k}`]);
     const txt = (n) => (el(n)?.value || '').trim();
     const d = {
       nome, categoria: cat,
@@ -723,6 +730,7 @@ function vForm(r) {
       console_nome: eCel ? '' : txt('console_nome'),
       ctrl_orig: c.ctrl_orig || 0, ctrl_para: c.ctrl_para || 0, tem_cabos: c.tem_cabos ? 1 : 0,
       jogos_desc: eCel ? '' : txt('jogos_desc'),
+      servico_desc: !eCel && c.c_servico ? txt('servico_desc') : '',
       nome_comprador: txt('nome_comprador'), tel_comprador: txt('tel_comprador'),
       data_envio_rep: el('reparo').checked ? el('data_envio_rep').value : '',
       data_entrega_rep: el('reparo').checked ? el('data_entrega_rep').value : '',
