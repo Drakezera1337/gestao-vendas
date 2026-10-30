@@ -197,3 +197,35 @@ function statusProduto(p) {
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+
+// Lucro "de caixa": conta o lucro à medida que o dinheiro entra, recuperando o custo primeiro.
+// Ex.: custo R$ 600, venda R$ 1.500 (R$ 400 na hora + fiado): enquanto não entrarem R$ 600 o lucro
+// recebido é zero; depois disso cada real que entra é lucro. Venda à vista: lucro todo no dia.
+// Devolve { eventos: [{data, categoria, lucro}], aReceber } (aReceber = lucro que falta entrar do fiado).
+function lucroRecebido() {
+  const parc = new Map();
+  for (const x of Dados.parcelas()) {
+    if (!parc.has(x.produto_uid)) parc.set(x.produto_uid, []);
+    parc.get(x.produto_uid).push(x);
+  }
+  const eventos = [];
+  let aReceber = 0;
+  for (const p of Dados.produtos()) {
+    if (!vendido(p)) continue;
+    const c = custo(p), pv = num(p.preco_venda), fiado = num(p.pag_fiado) === 1;
+    const ps = fiado ? (parc.get(p.uid) || []) : [];
+    const fiadoTotal = ps.length ? ps.reduce((t, x) => t + num(x.valor), 0) : (fiado ? num(p.val_fiado) : 0);
+    const entradas = [[p.data_venda, Math.max(pv - fiadoTotal, 0)],
+      ...ps.filter((x) => num(x.pago)).map((x) => [x.data_pagamento || x.vencimento || p.data_venda, num(x.valor)])]
+      .sort((a, b) => a[0].localeCompare(b[0]));
+    const quitado = !fiado || (ps.length > 0 && ps.every((x) => num(x.pago)));
+    let recebido = 0, reconhecido = 0;
+    entradas.forEach(([d, v], i) => {
+      recebido += v;
+      const novo = recebido >= c || (i === entradas.length - 1 && quitado) ? recebido - c : 0;
+      if (Math.abs(novo - reconhecido) > 0.004) { eventos.push({ data: d, categoria: p.categoria, lucro: novo - reconhecido }); reconhecido = novo; }
+    });
+    if (!quitado) aReceber += (pv - c) - reconhecido;
+  }
+  return { eventos, aReceber };
+}

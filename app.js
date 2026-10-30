@@ -132,6 +132,8 @@ function vInicio() {
   const despMes = soma(D.filter((d) => (d.data || '').startsWith(mes)), (d) => num(d.valor));
   const despHoje = soma(D.filter((d) => d.data === hoje), (d) => num(d.valor));
   const despMesForma = (f) => soma(D.filter((d) => (d.data || '').startsWith(mes) && d.forma_pagamento === f), (d) => num(d.valor));
+  const lr = lucroRecebido();
+  const lucroRecebidoMes = soma(lr.eventos.filter((e) => e.data.startsWith(mes)), (e) => e.lucro);
   const clientes = new Set(P.filter((p) => (p.nome_comprador || '').trim() && p.data_venda).map((p) => p.nome_comprador.trim())).size;
 
   // estoque por plataforma / modelo (mesmas regras da dashboard do PC)
@@ -178,6 +180,8 @@ function vInicio() {
       ${kpi('Nova despesa', '+ Lançar', { href: '#/despesa/nova', cor: 'var(--borda)' })}
       ${kpi('💚 Pix no mês', fmtBRL(despMesForma('Pix')), { nota: 'despesas', href: '#/despesas', cor: 'var(--verde)' })}
       ${kpi('💳 Cartão no mês', fmtBRL(despMesForma('Cartão')), { nota: 'despesas', href: '#/despesas', cor: 'var(--azul)' })}
+      ${kpi('Lucro recebido no mês', fmtBRL(lucroRecebidoMes), { nota: 'o custo volta primeiro', cor: 'var(--verde)', corValor: lucroRecebidoMes >= 0 ? 'var(--verde)' : 'var(--verm)' })}
+      ${kpi('Lucro a receber', fmtBRL(lr.aReceber), { nota: 'do fiado', href: '#/fiado', cor: 'var(--amb)' })}
     </div>
 
     <div class="secao" style="--cor:var(--azul)">📦 Estoque</div>
@@ -493,6 +497,7 @@ function vForm(r) {
   const parcelasExist = p ? Dados.parcelasDe(p.uid) : [];
   let parcelasGeradas = parcelasExist.length > 0;
   let unidades = []; // lote: [{data, preco}]
+  let parcelasForm = []; // fiado: [{data, valor}] — data e valor livres
 
   tela.innerHTML = `<form id="f" novalidate autocomplete="off">
     ${eCel ? `<div class="card bloco">
@@ -577,7 +582,12 @@ function vForm(r) {
           <div id="b_fiadoNovo"><div class="duas">
             ${campo('Nº de parcelas', '<input type="number" id="nParcelas" min="1" max="48" value="2" inputmode="numeric">')}
             ${campo('Vencimento da 1ª', '<input type="date" id="venc1">')}
-          </div><div class="sub">As parcelas são geradas mensalmente a partir dessa data, ao salvar.</div></div>
+          </div>
+          <div class="acoes" style="margin-top:8px"><button type="button" class="btn peq" id="gerarParc">Gerar parcelas iguais</button></div>
+          <div class="sub" style="margin-top:6px">Gere as parcelas e ajuste a data e o valor de cada uma (ex.: R$ 100 no sábado + 2 de R$ 500). Sem gerar, ao salvar elas são criadas iguais e mensais.</div>
+          <div id="parcLista"></div>
+          <div class="acoes" style="margin-top:8px"><button type="button" class="btn peq" id="maisParc">+ Parcela</button></div>
+          <div class="sub" id="somaParc" style="margin-top:6px"></div></div>
           <div id="b_fiadoInfo" class="aviso"></div>
         </div>
       </div>
@@ -684,6 +694,45 @@ function vForm(r) {
   f.addEventListener('input', atualizarBlocos);
   f.addEventListener('change', atualizarBlocos);
 
+  // ── fiado: parcelas com data e valor livres ──
+  function somaParcelas() {
+    if (!parcelasForm.length) { $('#somaParc').textContent = ''; return; }
+    const soma = parcelasForm.reduce((t, x) => t + lerValor(x.valor), 0), total = lerValor(el('val_fiado').value);
+    const ok = Math.abs(soma - total) <= 0.01;
+    $('#somaParc').innerHTML = `<span class="${ok ? 'pos' : 'neg'}">Soma das parcelas: ${fmtBRL(soma)} de ${fmtBRL(total)}${ok ? '' : ' — diferente do valor do fiado'}</span>`;
+  }
+  function desenharParcelas() {
+    $('#parcLista').innerHTML = parcelasForm.map((x, i) => `<div class="unidade">
+      <div class="unidade-cab"><span>${i + 1}ª parcela</span>
+        <button type="button" class="btn x" data-remparc="${i}" aria-label="Remover a ${i + 1}ª parcela">✕</button></div>
+      <div class="unidade-campos">
+        <input type="date" data-parc="${i}" data-c="data" value="${esc(x.data)}" aria-label="Vencimento da ${i + 1}ª parcela">
+        <input type="text" inputmode="decimal" placeholder="0,00" data-parc="${i}" data-c="valor" value="${esc(x.valor)}" aria-label="Valor da ${i + 1}ª parcela">
+      </div></div>`).join('');
+    $$('[data-parc]', f).forEach((inp) => inp.addEventListener('input', () => { parcelasForm[inp.dataset.parc][inp.dataset.c] = inp.value; somaParcelas(); }));
+    $$('[data-remparc]', f).forEach((b) => b.addEventListener('click', () => { parcelasForm.splice(Number(b.dataset.remparc), 1); desenharParcelas(); }));
+    somaParcelas();
+  }
+  function parcelasIguais(n, venc1, total) {
+    const base = Math.round((total / n) * 100) / 100, [y, m, dia] = venc1.split('-').map(Number), saida = [];
+    for (let i = 0; i < n; i++) {
+      const mm = m - 1 + i, ano = y + Math.floor(mm / 12), mes = (mm % 12) + 1;
+      const diaOk = Math.min(dia, new Date(ano, mes, 0).getDate());
+      saida.push({ data: `${ano}-${String(mes).padStart(2, '0')}-${String(diaOk).padStart(2, '0')}`,
+        valor: i === n - 1 ? Math.round((total - base * (n - 1)) * 100) / 100 : base });
+    }
+    return saida;
+  }
+  $('#gerarParc').addEventListener('click', () => {
+    const n = Math.trunc(num($('#nParcelas').value)), v1 = $('#venc1').value, total = lerValor(el('val_fiado').value);
+    if (n < 1 || !v1) return toast('Informe o nº de parcelas e o vencimento da 1ª.');
+    if (total <= 0) return toast('Informe o valor do fiado antes de gerar as parcelas.');
+    parcelasForm = parcelasIguais(n, v1, total).map((x) => ({ data: x.data, valor: valorCampo(x.valor) }));
+    desenharParcelas();
+  });
+  $('#maisParc').addEventListener('click', () => { parcelasForm.push({ data: '', valor: '' }); desenharParcelas(); });
+  el('val_fiado').addEventListener('input', somaParcelas);
+
   // ── fiado: resumo das parcelas já geradas + refazer ──
   if (parcelasGeradas) {
     const pagas = parcelasExist.filter((x) => num(x.pago)).length;
@@ -693,7 +742,9 @@ function vForm(r) {
       if (pagas && !confirm(`${pagas} parcela(s) já estão pagas. Refazer o parcelamento apaga esse histórico ao salvar. Continuar?`)) return;
       $('#nParcelas').value = parcelasExist.length;
       $('#venc1').value = parcelasExist[0]?.vencimento || '';
+      parcelasForm = parcelasExist.map((x) => ({ data: x.vencimento || '', valor: valorCampo(x.valor) }));
       parcelasGeradas = false;
+      desenharParcelas();
       atualizarBlocos();
     });
   }
@@ -745,10 +796,22 @@ function vForm(r) {
     const dc = el('data_compra').value, pcTxt = el('preco_compra').value.trim();
     if (!dc || !pcTxt) return erro('Preencha data e preço de compra.', dc ? 'preco_compra' : 'data_compra');
 
-    let nParc = 0, venc1 = '';
+    let parcelasNovas = []; // [{data, valor}] gravadas ao salvar
     if (el('pag_fiado').checked && !parcelasGeradas) {
-      nParc = Math.trunc(num($('#nParcelas').value)); venc1 = $('#venc1').value;
-      if (nParc < 1 || !venc1) return erro('Informe o nº de parcelas e o vencimento da 1ª parcela do fiado.');
+      if (parcelasForm.length) {
+        for (const [i, x] of parcelasForm.entries()) {
+          if (!x.data) return erro(`Informe a data da ${i + 1}ª parcela do fiado.`);
+          if (lerValor(x.valor) <= 0) return erro(`Informe o valor da ${i + 1}ª parcela do fiado.`);
+        }
+        parcelasNovas = parcelasForm.map((x) => ({ data: x.data, valor: lerValor(x.valor) })).sort((a, b) => a.data.localeCompare(b.data));
+        const somaP = Math.round(parcelasNovas.reduce((t, x) => t + x.valor, 0) * 100) / 100, totalF = lerValor(el('val_fiado').value);
+        if (!totalF) el('val_fiado').value = valorCampo(somaP); // fiado vazio: vale a soma das parcelas
+        else if (Math.abs(somaP - totalF) > 0.01) return erro(`A soma das parcelas (${fmtBRL(somaP)}) é diferente do valor do fiado (${fmtBRL(totalF)}).`);
+      } else {
+        const nParc = Math.trunc(num($('#nParcelas').value)), venc1 = $('#venc1').value;
+        if (nParc < 1 || !venc1) return erro('Informe o nº de parcelas e o vencimento da 1ª parcela do fiado.');
+        parcelasNovas = parcelasIguais(nParc, venc1, lerValor(el('val_fiado').value));
+      }
     }
 
     const unid = [{ data: dc, preco: lerValor(pcTxt) }];
@@ -803,19 +866,11 @@ function vForm(r) {
         })));
       }
       for (const uid of uids) {
-        if (d.pag_fiado && !parcelasGeradas && nParc > 0) {
+        if (d.pag_fiado && !parcelasGeradas && parcelasNovas.length) {
           for (const x of Dados.parcelasDe(uid)) Dados.excluir('parcelas', x.uid);
-          const total = d.val_fiado || 0, base = Math.round((total / nParc) * 100) / 100;
-          const [y, m, dia] = venc1.split('-').map(Number);
-          for (let i = 0; i < nParc; i++) {
-            const mm = m - 1 + i, ano = y + Math.floor(mm / 12), mes = (mm % 12) + 1;
-            const diaOk = Math.min(dia, new Date(ano, mes, 0).getDate());
-            Dados.gravar('parcelas', null, {
-              produto_uid: uid, numero: i + 1, pago: 0, data_pagamento: '',
-              valor: i === nParc - 1 ? Math.round((total - base * (nParc - 1)) * 100) / 100 : base,
-              vencimento: `${ano}-${String(mes).padStart(2, '0')}-${String(diaOk).padStart(2, '0')}`,
-            });
-          }
+          parcelasNovas.forEach((x, i) => Dados.gravar('parcelas', null, {
+            produto_uid: uid, numero: i + 1, pago: 0, data_pagamento: '', valor: x.valor, vencimento: x.data,
+          }));
         } else if (!d.pag_fiado) {
           for (const x of Dados.parcelasDe(uid)) Dados.excluir('parcelas', x.uid);
         }
