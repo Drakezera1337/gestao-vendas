@@ -252,3 +252,19 @@ function pontoLucro(p) {
 // vendas no fiado com parcela em aberto
 const vendasFiadoAbertas = () => Dados.produtos().filter((p) => vendido(p) && num(p.pag_fiado) === 1
   && !(Dados.parcelasDe(p.uid).length && Dados.parcelasDe(p.uid).every((x) => num(x.pago))));
+
+// { numero: [lucro que entra nesta parcela, lucro acumulado até ela] } — só das parcelas que trazem lucro.
+// (Mesma regra do PC: lucro_por_parcela.)
+function lucroPorParcela(p) {
+  const c = custo(p), pv = num(p.preco_venda), ps = Dados.parcelasDe(p.uid);
+  const fiadoTotal = ps.length ? ps.reduce((t, x) => t + num(x.valor), 0) : num(p.val_fiado);
+  let acum = Math.max(pv - fiadoTotal, 0), antes = Math.max(acum - c, 0);
+  const saida = {};
+  for (const x of ps) {
+    acum += num(x.valor);
+    const ate = Math.max(acum - c, 0);
+    if (ate - antes > 0.004) saida[x.numero] = [ate - antes, ate];
+    antes = ate;
+  }
+  return saida;
+}

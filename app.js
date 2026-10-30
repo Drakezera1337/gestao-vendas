@@ -403,7 +403,7 @@ function vProduto(r) {
         const atras = !num(x.pago) && x.vencimento && x.vencimento < hoje;
         const stp = num(x.pago) ? `✅ Paga${x.data_pagamento ? ` em ${fmtData(x.data_pagamento)}` : ''}` : atras ? '⚠ Atrasada' : '⏳ Pendente';
         return `<div class="parcela"><div class="info"><b>${x.numero}ª · ${fmtBRL(x.valor)}</b>
-          <small>${x.vencimento ? `Venc. ${fmtData(x.vencimento)} · ` : ''}<span class="${num(x.pago) ? 'pos' : atras ? 'neg' : ''}">${stp}</span>${x.numero === pontoLucro(p).n ? ' · <span class="pos">💰 lucro começa</span>' : ''}</small></div>
+          <small>${x.vencimento ? `Venc. ${fmtData(x.vencimento)} · ` : ''}<span class="${num(x.pago) ? 'pos' : atras ? 'neg' : ''}">${stp}</span></small>${(() => { const lp = lucroPorParcela(p)[x.numero]; return lp ? `<small class="pos">💰 ${x.numero === pontoLucro(p).n ? 'O lucro começa aqui: ' : ''}+${fmtBRL(lp[0])} de lucro · até aqui ${fmtBRL(lp[1])}</small>` : ''; })()}</div>
           <button type="button" class="btn peq" data-parcela="${x.uid}">${num(x.pago) ? 'Desfazer' : 'Marcar paga'}</button></div>`;
       }).join('')}
     </div>` : ''}
