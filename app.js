@@ -134,7 +134,6 @@ function vInicio() {
   const despHoje = soma(D.filter((d) => d.data === hoje), (d) => num(d.valor));
   const despMesForma = (f) => soma(D.filter((d) => (d.data || '').startsWith(mes) && d.forma_pagamento === f), (d) => num(d.valor));
   const lr = lucroRecebido();
-  const lucroRecebidoMes = soma(lr.eventos.filter((e) => e.data.startsWith(mes)), (e) => e.lucro);
   const clientes = new Set(P.filter((p) => (p.nome_comprador || '').trim() && p.data_venda).map((p) => p.nome_comprador.trim())).size;
 
   // estoque por plataforma / modelo (mesmas regras da dashboard do PC)
@@ -181,7 +180,7 @@ function vInicio() {
       ${kpi('Nova despesa', '+ Lançar', { href: '#/despesa/nova', cor: 'var(--borda)' })}
       ${kpi('💚 Pix no mês', fmtBRL(despMesForma('Pix')), { nota: 'despesas', href: '#/despesas', cor: 'var(--verde)' })}
       ${kpi('💳 Cartão no mês', fmtBRL(despMesForma('Cartão')), { nota: 'despesas', href: '#/despesas', cor: 'var(--azul)' })}
-      ${kpi('Lucro recebido no mês', fmtBRL(lucroRecebidoMes), { nota: 'o custo volta primeiro', cor: 'var(--verde)', corValor: lucroRecebidoMes >= 0 ? 'var(--verde)' : 'var(--verm)' })}
+      ${kpi('Faturamento a receber', fmtBRL(soma(parcAbertas, (x) => num(x.valor))), { nota: 'do fiado', href: '#/lucro-fiado', cor: 'var(--ciano)' })}
       ${kpi('Lucro a receber', fmtBRL(lr.aReceber), { nota: 'do fiado — toque para ver as parcelas', href: '#/lucro-fiado', cor: 'var(--amb)' })}
     </div>
 
