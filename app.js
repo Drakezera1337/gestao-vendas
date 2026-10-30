@@ -182,7 +182,7 @@ function vInicio() {
       ${kpi('💚 Pix no mês', fmtBRL(despMesForma('Pix')), { nota: 'despesas', href: '#/despesas', cor: 'var(--verde)' })}
       ${kpi('💳 Cartão no mês', fmtBRL(despMesForma('Cartão')), { nota: 'despesas', href: '#/despesas', cor: 'var(--azul)' })}
       ${kpi('Lucro recebido no mês', fmtBRL(lucroRecebidoMes), { nota: 'o custo volta primeiro', cor: 'var(--verde)', corValor: lucroRecebidoMes >= 0 ? 'var(--verde)' : 'var(--verm)' })}
-      ${kpi('Lucro a receber', fmtBRL(lr.aReceber), { nota: notaLucroReceber(), href: '#/lucro-fiado', cor: 'var(--amb)' })}
+      ${kpi('Lucro a receber', fmtBRL(lr.aReceber), { nota: 'do fiado — toque para ver as parcelas', href: '#/lucro-fiado', cor: 'var(--amb)' })}
     </div>
 
     <div class="secao" style="--cor:var(--azul)">📦 Estoque</div>
@@ -997,15 +997,6 @@ function vDespesa(r) {
 }
 
 // ─── Lucro a receber do fiado: em qual parcela o lucro começa ────────────────
-function notaLucroReceber() {
-  const ab = vendasFiadoAbertas();
-  if (ab.length === 1) {
-    const pl = pontoLucro(ab[0]);
-    if (pl.n) return pl.lucrando ? `já lucrando desde a ${pl.n}ª parcela` : `lucro a partir da ${pl.n}ª parcela`;
-  }
-  return ab.length ? `${ab.length} vendas no fiado — ver parcelas` : 'do fiado';
-}
-
 function vLucroFiado() {
   titulo('Lucro a receber', true);
   const vendas = vendasFiadoAbertas().map((p) => ({ p, pl: pontoLucro(p) }))
