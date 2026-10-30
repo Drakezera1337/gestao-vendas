@@ -586,14 +586,11 @@ function vForm(r) {
               ${campo('Nome do recebedor', entrada(`rec_${k}_nome`), `data-recnome="${k}"`)}
             </div>`}</div>`).join('')}
         <div id="b_fiado">
-          <div id="b_fiadoNovo"><div class="duas">
-            ${campo('Nº de parcelas', '<input type="number" id="nParcelas" min="1" max="48" value="2" inputmode="numeric">')}
-            ${campo('Vencimento da 1ª', '<input type="date" id="venc1">')}
-          </div>
-          <div class="acoes" style="margin-top:8px"><button type="button" class="btn peq" id="gerarParc">Gerar parcelas iguais</button></div>
-          <div class="sub" style="margin-top:6px">Gere as parcelas e ajuste a data e o valor de cada uma (ex.: R$ 100 no sábado + 2 de R$ 500). Sem gerar, ao salvar elas são criadas iguais e mensais.</div>
+          <div id="b_fiadoNovo">
+          <div class="sub" style="margin-top:6px">Parcelas do fiado: data e valor de cada uma. “+ Parcela” sugere 1 mês depois da anterior e o valor que falta.</div>
           <div id="parcLista"></div>
-          <div class="acoes" style="margin-top:8px"><button type="button" class="btn peq" id="maisParc">+ Parcela</button></div>
+          <div class="acoes" style="margin-top:8px"><button type="button" class="btn peq" id="maisParc">+ Parcela</button>
+            <button type="button" class="btn peq" id="dividirParc">Dividir igualmente</button></div>
           <div class="sub" id="somaParc" style="margin-top:6px"></div></div>
           <div id="b_fiadoInfo" class="aviso"></div>
         </div>
@@ -673,6 +670,7 @@ function vForm(r) {
     const fiado = el('pag_fiado').checked;
     $('#b_fiado').classList.toggle('oculto', !fiado);
     $('#b_fiadoNovo').classList.toggle('oculto', parcelasGeradas);
+    if (fiado && !parcelasGeradas && !parcelasForm.length) novaParcela();
     $('#b_fiadoInfo').classList.toggle('oculto', !parcelasGeradas);
     for (const k of ['cartao', 'pix', 'fiado']) {
       $(`[data-rec="${k}"]`).classList.toggle('oculto', !el(`pag_${k}`).checked);
@@ -720,24 +718,26 @@ function vForm(r) {
     $$('[data-remparc]', f).forEach((b) => b.addEventListener('click', () => { parcelasForm.splice(Number(b.dataset.remparc), 1); desenharParcelas(); }));
     somaParcelas();
   }
-  function parcelasIguais(n, venc1, total) {
-    const base = Math.round((total / n) * 100) / 100, [y, m, dia] = venc1.split('-').map(Number), saida = [];
-    for (let i = 0; i < n; i++) {
-      const mm = m - 1 + i, ano = y + Math.floor(mm / 12), mes = (mm % 12) + 1;
-      const diaOk = Math.min(dia, new Date(ano, mes, 0).getDate());
-      saida.push({ data: `${ano}-${String(mes).padStart(2, '0')}-${String(diaOk).padStart(2, '0')}`,
-        valor: i === n - 1 ? Math.round((total - base * (n - 1)) * 100) / 100 : base });
-    }
-    return saida;
+  function maisUmMes(iso) {
+    const [y, m, d] = iso.split('-').map(Number), ano = m === 12 ? y + 1 : y, mes = m === 12 ? 1 : m + 1;
+    return `${ano}-${String(mes).padStart(2, '0')}-${String(Math.min(d, new Date(ano, mes, 0).getDate())).padStart(2, '0')}`;
+  };
+  // sugere 1 mês depois da anterior (ou da data da venda) e o valor que ainda falta
+  function novaParcela() {
+    const base = parcelasForm.length ? parcelasForm[parcelasForm.length - 1].data : el('data_venda').value;
+    const falta = lerValor(el('val_fiado').value) - parcelasForm.reduce((t, x) => t + lerValor(x.valor), 0);
+    parcelasForm.push({ data: base ? maisUmMes(base) : '', valor: falta > 0.004 ? valorCampo(Math.round(falta * 100) / 100) : '' });
+    desenharParcelas();
   }
-  $('#gerarParc').addEventListener('click', () => {
-    const n = Math.trunc(num($('#nParcelas').value)), v1 = $('#venc1').value, total = lerValor(el('val_fiado').value);
-    if (n < 1 || !v1) return toast('Informe o nº de parcelas e o vencimento da 1ª.');
-    if (total <= 0) return toast('Informe o valor do fiado antes de gerar as parcelas.');
-    parcelasForm = parcelasIguais(n, v1, total).map((x) => ({ data: x.data, valor: valorCampo(x.valor) }));
+  $('#maisParc').addEventListener('click', novaParcela);
+  $('#dividirParc').addEventListener('click', () => {
+    const total = lerValor(el('val_fiado').value);
+    if (total <= 0) return toast('Informe o valor do fiado primeiro.');
+    if (!parcelasForm.length) novaParcela();
+    const n = parcelasForm.length, base = Math.round((total / n) * 100) / 100;
+    parcelasForm.forEach((x, i) => { x.valor = valorCampo(i === n - 1 ? Math.round((total - base * (n - 1)) * 100) / 100 : base); });
     desenharParcelas();
   });
-  $('#maisParc').addEventListener('click', () => { parcelasForm.push({ data: '', valor: '' }); desenharParcelas(); });
   el('val_fiado').addEventListener('input', somaParcelas);
 
   // ── fiado: resumo das parcelas já geradas + refazer ──
@@ -747,8 +747,6 @@ function vForm(r) {
       <div style="margin-top:8px"><button type="button" class="btn peq" id="refazer">🔄 Refazer parcelas</button></div>`;
     $('#refazer').addEventListener('click', () => {
       if (pagas && !confirm(`${pagas} parcela(s) já estão pagas. Refazer o parcelamento apaga esse histórico ao salvar. Continuar?`)) return;
-      $('#nParcelas').value = parcelasExist.length;
-      $('#venc1').value = parcelasExist[0]?.vencimento || '';
       parcelasForm = parcelasExist.map((x) => ({ data: x.vencimento || '', valor: valorCampo(x.valor) }));
       parcelasGeradas = false;
       desenharParcelas();
@@ -805,7 +803,8 @@ function vForm(r) {
 
     let parcelasNovas = []; // [{data, valor}] gravadas ao salvar
     if (el('pag_fiado').checked && !parcelasGeradas) {
-      if (parcelasForm.length) {
+      if (!parcelasForm.length) return erro('Adicione as parcelas do fiado (botão “+ Parcela”).');
+      {
         for (const [i, x] of parcelasForm.entries()) {
           if (!x.data) return erro(`Informe a data da ${i + 1}ª parcela do fiado.`);
           if (lerValor(x.valor) <= 0) return erro(`Informe o valor da ${i + 1}ª parcela do fiado.`);
@@ -813,11 +812,7 @@ function vForm(r) {
         parcelasNovas = parcelasForm.map((x) => ({ data: x.data, valor: lerValor(x.valor) })).sort((a, b) => a.data.localeCompare(b.data));
         const somaP = Math.round(parcelasNovas.reduce((t, x) => t + x.valor, 0) * 100) / 100, totalF = lerValor(el('val_fiado').value);
         if (!totalF) el('val_fiado').value = valorCampo(somaP); // fiado vazio: vale a soma das parcelas
-        else if (Math.abs(somaP - totalF) > 0.01) return erro(`A soma das parcelas (${fmtBRL(somaP)}) é diferente do valor do fiado (${fmtBRL(totalF)}).`);
-      } else {
-        const nParc = Math.trunc(num($('#nParcelas').value)), venc1 = $('#venc1').value;
-        if (nParc < 1 || !venc1) return erro('Informe o nº de parcelas e o vencimento da 1ª parcela do fiado.');
-        parcelasNovas = parcelasIguais(nParc, venc1, lerValor(el('val_fiado').value));
+        else if (Math.abs(somaP - totalF) > 0.01) return erro(`A soma das parcelas (${fmtBRL(somaP)}) é diferente do valor do fiado (${fmtBRL(totalF)}). Ajuste ou use “Dividir igualmente”.`);
       }
     }
 
