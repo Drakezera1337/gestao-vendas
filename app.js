@@ -61,7 +61,8 @@ function render() {
   const aba = v === 'lista' ? (a || 'compras') : v === 'inicio' || !v ? 'inicio' : ['produto', 'form'].includes(v) ? null : 'mais';
   if (aba) $$('.abas a').forEach((el) => el.classList.toggle('ativa', el.dataset.aba === aba));
   const telas = { inicio: vInicio, lista: vLista, produto: vProduto, form: vForm, despesas: vDespesas,
-    despesa: vDespesa, fiado: vFiado, clientes: vClientes, cliente: vCliente, mais: vMais, config: vConfig };
+    despesa: vDespesa, fiado: vFiado, clientes: vClientes, cliente: vCliente, mais: vMais, config: vConfig,
+    'lucro-fiado': vLucroFiado };
   (telas[v] || vInicio)(r);
   tela.scrollTo(0, mesma ? y : 0);
 }
@@ -181,7 +182,7 @@ function vInicio() {
       ${kpi('💚 Pix no mês', fmtBRL(despMesForma('Pix')), { nota: 'despesas', href: '#/despesas', cor: 'var(--verde)' })}
       ${kpi('💳 Cartão no mês', fmtBRL(despMesForma('Cartão')), { nota: 'despesas', href: '#/despesas', cor: 'var(--azul)' })}
       ${kpi('Lucro recebido no mês', fmtBRL(lucroRecebidoMes), { nota: 'o custo volta primeiro', cor: 'var(--verde)', corValor: lucroRecebidoMes >= 0 ? 'var(--verde)' : 'var(--verm)' })}
-      ${kpi('Lucro a receber', fmtBRL(lr.aReceber), { nota: 'do fiado', href: '#/fiado', cor: 'var(--amb)' })}
+      ${kpi('Lucro a receber', fmtBRL(lr.aReceber), { nota: notaLucroReceber(), href: '#/lucro-fiado', cor: 'var(--amb)' })}
     </div>
 
     <div class="secao" style="--cor:var(--azul)">📦 Estoque</div>
@@ -392,11 +393,17 @@ function vProduto(r) {
     <div class="card">
       <div class="parcela"><div class="info"><b>${parcelas.filter((x) => num(x.pago)).length} de ${parcelas.length} pagas</b></div>
         <b class="${soma(parcelas.filter((x) => !num(x.pago)), (x) => num(x.valor)) > 0 ? 'neg' : 'pos'}">Restante ${fmtBRL(soma(parcelas.filter((x) => !num(x.pago)), (x) => num(x.valor)))}</b></div>
+      ${(() => {
+        const pl = pontoLucro(p);
+        if (!pl.n) return '';
+        return `<div class="parcela"><div class="info pos">${pl.lucrando ? `💰 Já lucrando desde a ${pl.n}ª parcela`
+          : `💰 O lucro começa na ${pl.n}ª parcela (entram ${fmtBRL(pl.lucroNa)} de lucro nela) — falta cobrir ${fmtBRL(pl.faltaCusto)} do custo`}</div></div>`;
+      })()}
       ${parcelas.map((x) => {
         const atras = !num(x.pago) && x.vencimento && x.vencimento < hoje;
         const stp = num(x.pago) ? `✅ Paga${x.data_pagamento ? ` em ${fmtData(x.data_pagamento)}` : ''}` : atras ? '⚠ Atrasada' : '⏳ Pendente';
         return `<div class="parcela"><div class="info"><b>${x.numero}ª · ${fmtBRL(x.valor)}</b>
-          <small>${x.vencimento ? `Venc. ${fmtData(x.vencimento)} · ` : ''}<span class="${num(x.pago) ? 'pos' : atras ? 'neg' : ''}">${stp}</span></small></div>
+          <small>${x.vencimento ? `Venc. ${fmtData(x.vencimento)} · ` : ''}<span class="${num(x.pago) ? 'pos' : atras ? 'neg' : ''}">${stp}</span>${x.numero === pontoLucro(p).n ? ' · <span class="pos">💰 lucro começa</span>' : ''}</small></div>
           <button type="button" class="btn peq" data-parcela="${x.uid}">${num(x.pago) ? 'Desfazer' : 'Marcar paga'}</button></div>`;
       }).join('')}
     </div>` : ''}
@@ -987,6 +994,36 @@ function vDespesa(r) {
     formAberto = false;
     voltar('#/despesas');
   });
+}
+
+// ─── Lucro a receber do fiado: em qual parcela o lucro começa ────────────────
+function notaLucroReceber() {
+  const ab = vendasFiadoAbertas();
+  if (ab.length === 1) {
+    const pl = pontoLucro(ab[0]);
+    if (pl.n) return pl.lucrando ? `já lucrando desde a ${pl.n}ª parcela` : `lucro a partir da ${pl.n}ª parcela`;
+  }
+  return ab.length ? `${ab.length} vendas no fiado — ver parcelas` : 'do fiado';
+}
+
+function vLucroFiado() {
+  titulo('Lucro a receber', true);
+  const vendas = vendasFiadoAbertas().map((p) => ({ p, pl: pontoLucro(p) }))
+    .sort((a, b) => (a.pl.lucrando - b.pl.lucrando) || (a.pl.vencimento || '9999').localeCompare(b.pl.vencimento || '9999'));
+  tela.innerHTML = `<div class="sub">O custo de cada venda volta primeiro; a partir da parcela marcada, o que entra é lucro.</div>
+    <div class="itens" style="margin-top:10px">${vendas.length ? vendas.map(({ p, pl }) => {
+      let txt, cl;
+      if (pl.n === null) { txt = '⚠ Venda no prejuízo: as parcelas não cobrem o custo'; cl = 'neg'; }
+      else if (pl.n === 0 || pl.lucrando) { txt = `✅ Já lucrando ${pl.n === 0 ? 'desde a entrada' : `desde a ${pl.n}ª parcela`}`; cl = 'pos'; }
+      else {
+        txt = `💰 O lucro começa na <b>${pl.n}ª parcela</b>${pl.vencimento ? ` (venc. ${fmtData(pl.vencimento)})` : ''} — entram ${fmtBRL(pl.lucroNa)} de lucro nela<br>Falta cobrir ${fmtBRL(pl.faltaCusto)} do custo`;
+        cl = '';
+      }
+      return `<a class="card item" href="#/produto/${p.uid}">
+        <div class="item-topo"><span class="item-nome">${p.categoria === 'games' ? '🎮' : '📱'} ${esc(nomeExibicao(p))}</span><b>${fmtBRL(num(p.preco_venda) - custo(p))}</b></div>
+        <div class="linha">${p.nome_comprador ? `<span>🧑 ${esc(p.nome_comprador)}</span>` : ''}<span>recebido ${fmtBRL(pl.recebido)} de ${fmtBRL(p.preco_venda)}</span><span>${pl.pagas}/${pl.totalParcelas} parcelas</span></div>
+        <div class="linha"><span class="${cl}" style="color:${cl ? '' : 'var(--amb)'}">${txt}</span></div></a>`;
+    }).join('') : '<div class="vazio">Nenhuma venda no fiado em aberto.</div>'}</div>`;
 }
 
 // ─── Fiado ──────────────────────────────────────────────────────────────────

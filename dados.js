@@ -229,3 +229,26 @@ function lucroRecebido() {
   }
   return { eventos, aReceber };
 }
+
+// Em qual parcela do fiado o lucro começa — o custo volta primeiro, parcelas na ordem do número.
+// (Mesma regra do PC: ponto_lucro.) n = 0: já na entrada; n = null: venda no prejuízo.
+function pontoLucro(p) {
+  const c = custo(p), pv = num(p.preco_venda);
+  const ps = Dados.parcelasDe(p.uid);
+  const fiadoTotal = ps.length ? ps.reduce((t, x) => t + num(x.valor), 0) : num(p.val_fiado);
+  const entrada = Math.max(pv - fiadoTotal, 0);
+  let n = null, vencimento = '', lucroNa = 0;
+  if (entrada >= c - 0.004) { n = 0; lucroNa = entrada - c; } else {
+    let acum = entrada;
+    for (const x of ps) {
+      acum += num(x.valor);
+      if (acum >= c - 0.004) { n = x.numero; vencimento = x.vencimento || ''; lucroNa = acum - c; break; }
+    }
+  }
+  const recebido = entrada + ps.filter((x) => num(x.pago)).reduce((t, x) => t + num(x.valor), 0);
+  return { n, vencimento, lucroNa, lucrando: recebido >= c - 0.004, faltaCusto: Math.max(c - recebido, 0), recebido,
+    pagas: ps.filter((x) => num(x.pago)).length, totalParcelas: ps.length };
+}
+// vendas no fiado com parcela em aberto
+const vendasFiadoAbertas = () => Dados.produtos().filter((p) => vendido(p) && num(p.pag_fiado) === 1
+  && !(Dados.parcelasDe(p.uid).length && Dados.parcelasDe(p.uid).every((x) => num(x.pago))));
