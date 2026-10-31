@@ -271,9 +271,11 @@ function listarItens(modo, cat, periodo, nomeFiltro) {
   const m = (rot, val, cor = '', inv = false) => `<div class="${inv ? 'inv' : ''}" ${cor ? `style="--valor:${cor}"` : ''}><small>${rot}</small><b>${val}</b></div>`;
   let met;
   if (modo === 'compras') {
-    const luc = soma(itens.filter((p) => num(p.preco_venda)), (p) => num(p.preco_venda) - custo(p));
+    const comPrevisto = itens.filter((p) => num(p.preco_venda) || num(p.preco_previsto));
+    const luc = soma(comPrevisto, (p) => (num(p.preco_venda) || num(p.preco_previsto)) - custo(p));
     met = m('Itens', itens.length) + m('Capital investido', fmtBRL(soma(itens, custo)), 'var(--amb)')
-      + m('Lucro previsto', fmtBRL(luc), luc >= 0 ? 'var(--verde)' : 'var(--verm)');
+      + m(comPrevisto.length === itens.length ? 'Lucro previsto' : `Lucro previsto (${comPrevisto.length} de ${itens.length})`,
+        comPrevisto.length ? fmtBRL(luc) : '—', luc >= 0 ? 'var(--verde)' : 'var(--verm)');
     if (cat === 'games') {
       const cats = itens.map((p) => [p, subCats(p)]);
       met += m('Consoles', cats.filter(([, c]) => c.includes('console')).length, '', true)
@@ -306,8 +308,9 @@ function listarItens(modo, cat, periodo, nomeFiltro) {
       linhas = `<div class="linha"><span>Compra <b>${fmtBRL(p.preco_compra)}</b></span>${num(p.custo_reparo) ? `<span>conserto <b>${fmtBRL(p.custo_reparo)}</b></span>` : ''}${p.data_envio_rep ? `<span>enviado ${fmtData(p.data_envio_rep)}</span>` : ''}</div>
         ${p.observacoes ? `<div class="linha"><span>${esc(p.observacoes)}</span></div>` : ''}`;
     } else {
-      const pv = num(p.preco_venda);
-      linhas = `<div class="linha"><span>${fmtData(p.data_compra)}</span><span>compra <b>${fmtBRL(custo(p))}</b></span>${pv ? `<span>venda <b>${fmtBRL(pv)}</b></span><span>lucro <b class="${cls(pv - custo(p))}">${fmtBRL(pv - custo(p))}</b></span>` : ''}</div>`;
+      const pv = num(p.preco_venda), pp = num(p.preco_previsto);
+      linhas = `<div class="linha"><span>${fmtData(p.data_compra)}</span><span>compra <b>${fmtBRL(custo(p))}</b></span>${pv ? `<span>venda <b>${fmtBRL(pv)}</b></span><span>lucro <b class="${cls(pv - custo(p))}">${fmtBRL(pv - custo(p))}</b></span>`
+        : pp ? `<span>previsto <b>${fmtBRL(pp)}</b></span><span>lucro prev. <b class="${cls(pp - custo(p))}">${fmtBRL(pp - custo(p))}</b></span>` : ''}</div>`;
     }
     return `<a class="card item" href="#/produto/${p.uid}">
       <div class="item-topo"><span class="item-nome">${esc(nomeExibicao(p))}</span>${modo === 'compras' ? `<span class="tags"><span class="tag ${stCls}">${esc(st)}</span>${stCls !== 'defeito' && comDefeito(p) ? '<span class="tag defeito">⚠ Com defeito</span>' : ''}</span>` : ''}</div>
@@ -372,6 +375,7 @@ function vProduto(r) {
       ${linhaDet('Data da compra', fmtData(p.data_compra))}
       ${linhaDet('Preço de compra', fmtBRL(p.preco_compra), 'forte')}
       ${num(p.reparo) ? linhaDet('Custo do conserto', fmtBRL(p.custo_reparo)) : ''}
+      ${!p.data_venda && num(p.preco_previsto) ? linhaDet('Preço previsto de venda', fmtBRL(p.preco_previsto)) + linhaDet('Lucro previsto', fmtBRL(num(p.preco_previsto) - custo(p)), cls(num(p.preco_previsto) - custo(p))) : ''}
       ${linhaDet('Data da venda', fmtData(p.data_venda))}
       ${pv ? linhaDet('Preço de venda', fmtBRL(pv), 'forte pos') : ''}
       ${pv ? linhaDet('Lucro', fmtBRL(luc), `forte ${cls(luc)}`) : ''}
@@ -542,6 +546,10 @@ function vForm(r) {
         ${campo('Data da compra *', entrada('data_compra', 'date'))}
         ${campo('Preço de compra (R$) *', entrada('preco_compra'))}
       </div>
+      <div class="duas">
+        ${campo('Preço previsto de venda (R$)', entrada('preco_previsto'))}
+        <div class="campo" style="display:flex;align-items:flex-end;padding-bottom:12px"><span id="lucroPrevisto" class="sub"></span></div>
+      </div>
       ${p ? '' : `<label class="check"><input type="checkbox" id="lote"> Adicionar em lote (mesmo produto, outras datas)</label>
       <div id="b_lote" class="oculto">
         <div class="sub">Data e preço acima são os da 1ª unidade. Adicione as outras:</div>
@@ -620,7 +628,7 @@ function vForm(r) {
     for (const n of ['nome', 'armazenamento', 'saude_bateria', 'plataforma', 'num_serie', 'console_nome', 'jogos_desc',
       'data_compra', 'data_envio_rep', 'data_entrega_rep', 'data_venda', 'nome_comprador', 'tel_comprador',
       'observacoes', 'status_item']) setV(n, p[n]);
-    for (const n of ['preco_compra', 'custo_reparo', 'preco_venda', 'val_cartao', 'val_pix', 'val_dinheiro', 'val_fiado']) setV(n, valorCampo(p[n]));
+    for (const n of ['preco_compra', 'preco_previsto', 'custo_reparo', 'preco_venda', 'val_cartao', 'val_pix', 'val_dinheiro', 'val_fiado']) setV(n, valorCampo(p[n]));
     setV('ctrl_orig', num(p.ctrl_orig) || ''); setV('ctrl_para', num(p.ctrl_para) || '');
     // recebedor de cada forma (venda antiga sem ele: sugere o recebedor único de antes)
     for (const k of ['cartao', 'pix', 'fiado']) {
@@ -690,6 +698,11 @@ function vForm(r) {
       }
     }
     $('#previa').innerHTML = txt;
+    const pp = lerValor(el('preco_previsto').value);
+    if (pp && pc + cr) {
+      const lp = pp - pc - cr;
+      $('#lucroPrevisto').innerHTML = `Lucro previsto: <b class="${cls(lp)}">${fmtBRL(lp)}</b> (${((lp / (pc + cr)) * 100).toFixed(1).replace('.', ',')}%)`;
+    } else $('#lucroPrevisto').textContent = '';
     if ($('#resumoLote')) {
       const total = pc + soma(unidades, (u) => lerValor(u.preco));
       $('#resumoLote').textContent = `${1 + unidades.length} unidades serão cadastradas — total investido: ${fmtBRL(total)}`;
@@ -828,6 +841,7 @@ function vForm(r) {
     const txt = (n) => (el(n)?.value || '').trim();
     const d = {
       nome, categoria: cat,
+      preco_previsto: lerValor(el('preco_previsto').value),
       reparo: el('reparo').checked ? 1 : 0,
       consertado: el('reparo').checked && el('consertado').checked ? 1 : 0,
       custo_reparo: el('reparo').checked ? lerValor(el('custo_reparo').value) : 0,
