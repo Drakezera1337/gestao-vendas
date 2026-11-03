@@ -180,7 +180,7 @@ function vInicio() {
       ${kpi('Nova despesa', '+ Lançar', { href: '#/despesa/nova', cor: 'var(--borda)' })}
       ${kpi('💚 Pix no mês', fmtBRL(despMesForma('Pix')), { nota: 'despesas', href: '#/despesas', cor: 'var(--verde)' })}
       ${kpi('💳 Cartão no mês', fmtBRL(despMesForma('Cartão')), { nota: 'despesas', href: '#/despesas', cor: 'var(--azul)' })}
-      ${kpi('Faturamento a receber', fmtBRL(soma(parcAbertas, (x) => num(x.valor))), { nota: 'do fiado', href: '#/lucro-fiado', cor: 'var(--ciano)' })}
+      ${kpi('Mensalidades', fmtBRL(soma(parcAbertas.filter((x) => (x.vencimento || '').startsWith(mes)), (x) => num(x.valor))), { nota: `a receber em ${MESES[Number(mes.slice(5, 7)) - 1].toLowerCase()}`, href: '#/fiado', cor: 'var(--ciano)' })}
       ${kpi('Lucro a receber', fmtBRL(lr.aReceber), { nota: 'do fiado — toque para ver as parcelas', href: '#/lucro-fiado', cor: 'var(--amb)' })}
     </div>
 
