@@ -180,7 +180,12 @@ function vInicio() {
       ${kpi('Nova despesa', '+ Lançar', { href: '#/despesa/nova', cor: 'var(--borda)' })}
       ${kpi('💚 Pix no mês', fmtBRL(despMesForma('Pix')), { nota: 'despesas', href: '#/despesas', cor: 'var(--verde)' })}
       ${kpi('💳 Cartão no mês', fmtBRL(despMesForma('Cartão')), { nota: 'despesas', href: '#/despesas', cor: 'var(--azul)' })}
-      ${kpi('Mensalidades', fmtBRL(soma(parcAbertas.filter((x) => (x.vencimento || '').startsWith(mes)), (x) => num(x.valor))), { nota: `a receber em ${MESES[Number(mes.slice(5, 7)) - 1].toLowerCase()}`, href: '#/fiado', cor: 'var(--ciano)' })}
+      ${(() => {
+        const doMes = Dados.parcelas().filter((x) => (x.vencimento || '').startsWith(mes) && Dados.estado().produtos[x.produto_uid]);
+        const nomeMes = MESES[Number(mes.slice(5, 7)) - 1].toLowerCase();
+        return kpi(`Mensalidades ${nomeMes} · total`, fmtBRL(soma(doMes, (x) => num(x.valor))), { href: `#/fiado?mes=${mes}&todas=1`, cor: 'var(--borda)' })
+          + kpi(`Mensalidades ${nomeMes} · a receber`, fmtBRL(soma(doMes.filter((x) => !num(x.pago)), (x) => num(x.valor))), { href: `#/fiado?mes=${mes}`, cor: 'var(--ciano)', corValor: 'var(--ciano)' });
+      })()}
       ${kpi('Lucro a receber', fmtBRL(lr.aReceber), { nota: 'do fiado — toque para ver as parcelas', href: '#/lucro-fiado', cor: 'var(--amb)' })}
     </div>
 
@@ -1026,27 +1031,33 @@ function vLucroFiado() {
 }
 
 // ─── Fiado ──────────────────────────────────────────────────────────────────
-function vFiado() {
-  titulo('Fiado — em aberto', true);
+function vFiado(r) {
+  const mes = r?.q.get('mes') || '', todas = r?.q.get('todas') === '1';
+  const nomeMes = mes ? MESES[Number(mes.slice(5, 7)) - 1].toLowerCase() : '';
+  titulo(mes ? `Mensalidades ${nomeMes} — ${todas ? 'total' : 'a receber'}` : 'Fiado — em aberto', true);
   const prod = Dados.estado().produtos;
   const hoje = hojeISO();
-  const lista = Dados.parcelas().filter((x) => !num(x.pago) && prod[x.produto_uid])
+  const lista = Dados.parcelas().filter((x) => (todas || !num(x.pago)) && prod[x.produto_uid] && (!mes || (x.vencimento || '').startsWith(mes)))
     .sort((a, b) => (!a.vencimento) - (!b.vencimento) || (a.vencimento || '').localeCompare(b.vencimento || ''));
-  tela.innerHTML = `<div class="sub">${lista.length} parcela(s) em aberto — total de <b>${fmtBRL(soma(lista, (x) => num(x.valor)))}</b></div>
+  const totalL = soma(lista, (x) => num(x.valor)), recebidoL = soma(lista.filter((x) => num(x.pago)), (x) => num(x.valor));
+  tela.innerHTML = `<div class="sub">${mes && todas
+      ? `${lista.length} parcela(s) no mês — total <b>${fmtBRL(totalL)}</b> · recebido ${fmtBRL(recebidoL)} · a receber ${fmtBRL(totalL - recebidoL)}`
+      : `${lista.length} parcela(s) em aberto — total de <b>${fmtBRL(totalL)}</b>`}</div>
     <div class="itens" style="margin-top:10px">${lista.length ? lista.map((x) => {
       const p = { ...prod[x.produto_uid], uid: x.produto_uid };
-      const atras = x.vencimento && x.vencimento < hoje;
+      const pago = num(x.pago), atras = !pago && x.vencimento && x.vencimento < hoje;
       return `<div class="card item">
         <div class="item-topo"><span class="item-nome">${p.categoria === 'games' ? '🎮' : '📱'} ${esc(nomeExibicao(p))}</span><b>${fmtBRL(x.valor)}</b></div>
         <div class="linha">${p.nome_comprador ? `<span>🧑 ${esc(p.nome_comprador)}</span>` : ''}<span>${x.numero}ª parcela</span>
-          ${x.vencimento ? `<span>venc. ${fmtData(x.vencimento)}</span>` : ''}<span class="${atras ? 'neg' : ''}">${atras ? '⚠ Atrasada' : '⏳ Pendente'}</span></div>
+          ${x.vencimento ? `<span>venc. ${fmtData(x.vencimento)}</span>` : ''}<span class="${pago ? 'pos' : atras ? 'neg' : ''}">${pago ? `✅ Paga${x.data_pagamento ? ` em ${fmtData(x.data_pagamento)}` : ''}` : atras ? '⚠ Atrasada' : '⏳ Pendente'}</span></div>
         <div class="acoes" style="margin-top:10px">
           <a class="btn peq" href="#/produto/${p.uid}">Ver venda</a>
-          <button type="button" class="btn peq prim" data-pagar="${x.uid}">Marcar paga</button></div></div>`;
-    }).join('') : '<div class="vazio">Nenhuma parcela em aberto. 🎉</div>'}</div>`;
+          <button type="button" class="btn peq ${pago ? '' : 'prim'}" data-pagar="${x.uid}" data-pago="${pago ? 1 : 0}">${pago ? 'Desfazer' : 'Marcar paga'}</button></div></div>`;
+    }).join('') : `<div class="vazio">${mes && todas ? 'Nenhuma parcela vence neste mês.' : 'Nenhuma parcela em aberto. 🎉'}</div>`}</div>`;
   $$('[data-pagar]', tela).forEach((b) => b.addEventListener('click', () => {
-    Dados.gravar('parcelas', b.dataset.pagar, { pago: 1, data_pagamento: hojeISO() });
-    toast('Parcela marcada como paga');
+    const desfazer = b.dataset.pago === '1';
+    Dados.gravar('parcelas', b.dataset.pagar, desfazer ? { pago: 0, data_pagamento: '' } : { pago: 1, data_pagamento: hojeISO() });
+    toast(desfazer ? 'Pagamento desfeito' : 'Parcela marcada como paga');
     render();
   }));
 }
