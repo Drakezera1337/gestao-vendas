@@ -2,10 +2,10 @@
 // Formato: { produtos: {uid: registro}, despesas: {...}, parcelas: {...}, exclusoes: {tabela: {uid: ms}} }
 // Todo registro tem `u` = momento da última alteração (ms). Na mescla vence o `u` mais novo;
 // uma exclusão vence se for mais nova que a última edição.
-const TABELAS = ['produtos', 'despesas', 'parcelas'];
+const TABELAS = ['produtos', 'despesas', 'parcelas', 'gastos_contas', 'gastos_lanc'];
 
 function estadoVazio() {
-  return { v: 1, produtos: {}, despesas: {}, parcelas: {}, exclusoes: { produtos: {}, despesas: {}, parcelas: {} } };
+  return { v: 1, ...Object.fromEntries(TABELAS.map((t) => [t, {}])), exclusoes: Object.fromEntries(TABELAS.map((t) => [t, {}])) };
 }
 
 function canonico(rec) {
@@ -112,6 +112,9 @@ const Dados = (() => {
     produto: (uid) => (db.produtos[uid] ? { ...db.produtos[uid], uid } : null),
     despesa: (uid) => (db.despesas[uid] ? { ...db.despesas[uid], uid } : null),
     parcelasDe: (puid) => lista('parcelas').filter((p) => p.produto_uid === puid).sort((a, b) => a.numero - b.numero),
+    gastosContas: () => lista('gastos_contas'),
+    contaGasto: (uid) => (db.gastos_contas[uid] ? { ...db.gastos_contas[uid], uid } : null),
+    lancGasto: (uid) => db.gastos_lanc[uid] || null,
   };
 })();
 
@@ -267,4 +270,36 @@ function lucroPorParcela(p) {
     antes = ate;
   }
   return saida;
+}
+
+// ─── Gastos pessoais (menu Gastos) — mesmas regras do PC ─────────────────────
+const CATEGORIAS_GASTO = ['Moradia', 'Cartões', 'Impostos (MEI)', 'Pessoal', 'Negócio', 'Obra / Casa', 'Outros'];
+function mesDesloc(mes, d) {
+  let [y, m] = mes.split('-').map(Number); m += d;
+  while (m < 1) { y--; m += 12; } while (m > 12) { y++; m -= 12; }
+  return `${y}-${String(m).padStart(2, '0')}`;
+}
+const nomeMes = (mes) => `${MESES[Number(mes.slice(5, 7)) - 1]}/${mes.slice(0, 4)}`;
+// um lançamento por conta e mês, com o mesmo uid no PC e no celular
+const uidLancGasto = (contaUid, mes) => `${contaUid}_${mes}`;
+// lucro das vendas no mês (a renda de um mês de gastos é o lucro do mês ANTERIOR, como na planilha)
+const lucroGamezera = (mes) => Dados.produtos().filter((p) => vendido(p) && p.data_venda.startsWith(mes))
+  .reduce((t, p) => t + num(p.preco_venda) - custo(p), 0);
+function gastosDoMes(mes) {
+  const ant = mesDesloc(mes, -1);
+  return Dados.gastosContas()
+    .sort((a, b) => (num(a.ordem) - num(b.ordem)) || (a.nome || '').localeCompare(b.nome || '', 'pt-BR'))
+    .map((c) => {
+      const l = Dados.lancGasto(uidLancGasto(c.uid, mes)) || {}, la = Dados.lancGasto(uidLancGasto(c.uid, ant)) || {};
+      return { ...c, valor: num(l.valor), pago: num(l.pago), data_pagamento: l.data_pagamento || '', anterior: num(la.valor) };
+    })
+    .filter((c) => (c.ativa === undefined || num(c.ativa) === 1) || c.valor);
+}
+function salvarLancGasto(contaUid, mes, { valor, pago }) {
+  const uid = uidLancGasto(contaUid, mes), atual = Dados.lancGasto(uid) || {};
+  const p = pago === undefined ? num(atual.pago) : (pago ? 1 : 0);
+  Dados.gravar('gastos_lanc', uid, {
+    conta_uid: contaUid, mes, valor: valor === undefined ? num(atual.valor) : valor, pago: p,
+    data_pagamento: p ? (num(atual.pago) ? atual.data_pagamento || '' : hojeISO()) : '',
+  });
 }

@@ -62,7 +62,7 @@ function render() {
   if (aba) $$('.abas a').forEach((el) => el.classList.toggle('ativa', el.dataset.aba === aba));
   const telas = { inicio: vInicio, lista: vLista, produto: vProduto, form: vForm, despesas: vDespesas,
     despesa: vDespesa, fiado: vFiado, clientes: vClientes, cliente: vCliente, mais: vMais, config: vConfig,
-    'lucro-fiado': vLucroFiado };
+    'lucro-fiado': vLucroFiado, gastos: vGastos, 'gasto-conta': vGastoConta, 'gastos-ano': vGastosAno };
   (telas[v] || vInicio)(r);
   tela.scrollTo(0, mesma ? y : 0);
 }
@@ -1108,6 +1108,121 @@ function vCliente(r) {
       <div class="linha"><span>${fmtData(p.data_venda)}</span></div></a>`).join('') || '<div class="vazio">Nenhuma compra.</div>'}</div>`;
 }
 
+// ─── Gastos (contas pessoais do mês) ────────────────────────────────────────
+function vGastos(r) {
+  const mes = r.q.get('mes') || mesISO();
+  titulo('Gastos', true);
+  const contas = gastosDoMes(mes);
+  const mesRenda = mesDesloc(mes, -1);
+  const total = soma(contas, (c) => c.valor), renda = lucroGamezera(mesRenda);
+  const totalAnt = soma(gastosDoMes(mesRenda), (c) => c.valor);
+  const falta = soma(contas.filter((c) => c.valor && !c.pago), (c) => c.valor);
+  const sobra = renda - total, pct = renda ? (total / renda) * 100 : 0, variacao = totalAnt ? ((total - totalAnt) / totalAnt) * 100 : null;
+  const pctTxt = (v) => `${v.toFixed(1).replace('.', ',')}%`;
+  const porCat = {};
+  for (const c of contas) porCat[c.categoria || 'Outros'] = (porCat[c.categoria || 'Outros'] || 0) + c.valor;
+  tela.innerHTML = `
+    <div class="periodo">
+      <button type="button" class="btn peq" data-ir="#/gastos?mes=${mesDesloc(mes, -1)}" aria-label="Mês anterior">◀</button>
+      <b>${nomeMes(mes)}</b>
+      <button type="button" class="btn peq" data-ir="#/gastos?mes=${mesDesloc(mes, 1)}" aria-label="Próximo mês">▶</button>
+      ${mes !== mesISO() ? '<button type="button" class="btn peq" data-ir="#/gastos">Atual</button>' : ''}
+    </div>
+    <div class="grade" style="margin-top:12px">
+      ${kpi('Total de gastos', fmtBRL(total), { cor: 'var(--verm)', corValor: 'var(--verm)' })}
+      ${kpi(`Lucro Gamezera de ${MESES[Number(mesRenda.slice(5, 7)) - 1].toLowerCase()}`, fmtBRL(renda), { cor: 'var(--verde)', corValor: 'var(--verde)' })}
+      ${kpi('Sobrou no mês', fmtBRL(sobra), { cor: 'var(--verde)', corValor: sobra >= 0 ? 'var(--verde)' : 'var(--verm)' })}
+      ${kpi('% da renda gasta', pctTxt(pct), { cor: 'var(--amb)', corValor: pct > 100 ? 'var(--verm)' : '' })}
+      ${kpi('Gastos vs mês anterior', variacao === null ? '—' : (variacao > 0 ? '+' : '') + pctTxt(variacao), { cor: 'var(--borda)', corValor: (variacao || 0) > 0 ? 'var(--verm)' : 'var(--verde)' })}
+      ${kpi('Falta pagar', fmtBRL(falta), { cor: 'var(--amb)', corValor: falta ? 'var(--amb)' : 'var(--verde)' })}
+    </div>
+    <div class="acoes"><a class="btn prim" href="#/gasto-conta/nova?mes=${mes}">+ Nova conta</a><a class="btn" href="#/gastos-ano?ano=${mes.slice(0, 4)}">📅 Resumo do ano</a></div>
+    <div class="secao" style="--cor:var(--verm)">💳 Contas de ${nomeMes(mes)}</div>
+    <div class="itens">${contas.length ? contas.map((c) => {
+      const v = c.valor, a = c.anterior;
+      const varTxt = v && a ? (Math.abs(v - a) < 0.005 ? 'igual ao mês anterior' : `${v > a ? '+' : ''}${pctTxt(((v - a) / a) * 100)} vs mês anterior`) : v && !a ? 'novo' : '';
+      return `<div class="card item">
+        <div class="item-topo"><a class="item-nome" href="#/gasto-conta/${c.uid}?mes=${mes}">${esc(c.nome)}</a><b class="${v ? 'neg' : ''}">${v ? fmtBRL(v) : '—'}</b></div>
+        <div class="linha"><span>${esc(c.categoria || 'Outros')}</span>${varTxt ? `<span>${varTxt}</span>` : ''}</div>
+        <div class="acoes" style="margin-top:8px">
+          ${v ? `<button type="button" class="btn peq ${c.pago ? '' : 'prim'}" data-pago="${c.uid}">${c.pago ? `✅ Pago${c.data_pagamento ? ` ${fmtData(c.data_pagamento).slice(0, 5)}` : ''}` : 'Marcar pago'}</button>` : ''}
+          ${c.link ? `<a class="btn peq" href="${esc(c.link)}" target="_blank" rel="noopener">Pagar ↗</a>` : `<a class="btn peq" href="#/gasto-conta/${c.uid}?mes=${mes}">+ link para pagar</a>`}
+        </div></div>`;
+    }).join('') : '<div class="vazio">Nenhuma conta cadastrada. Toque em “+ Nova conta”.</div>'}</div>
+    ${total ? `<div class="secao" style="--cor:var(--roxo)">Por categoria</div>
+    <div class="card det">${CATEGORIAS_GASTO.concat(Object.keys(porCat).filter((k) => !CATEGORIAS_GASTO.includes(k)))
+      .filter((k) => porCat[k]).map((k) => linhaDet(k, `${fmtBRL(porCat[k])} <span class="sub">(${Math.round((porCat[k] / total) * 100)}%)</span>`)).join('')}</div>` : ''}`;
+  $$('[data-ir]', tela).forEach((b) => b.addEventListener('click', () => ir(b.dataset.ir)));
+  $$('[data-pago]', tela).forEach((b) => b.addEventListener('click', () => {
+    const c = contas.find((x) => x.uid === b.dataset.pago);
+    salvarLancGasto(c.uid, mes, { pago: !c.pago });
+    toast(c.pago ? 'Marcado como pendente' : 'Marcado como pago');
+    render();
+  }));
+}
+
+function vGastoConta(r) {
+  const uid = r.partes[1] !== 'nova' ? r.partes[1] : null;
+  const mes = r.q.get('mes') || mesISO();
+  const c = uid ? Dados.contaGasto(uid) : null;
+  titulo(c ? 'Editar conta' : 'Nova conta', true);
+  if (uid && !c) { tela.innerHTML = '<div class="vazio">Conta não encontrada.</div>'; return; }
+  const l = uid ? Dados.lancGasto(uidLancGasto(uid, mes)) || {} : {};
+  formAberto = true;
+  tela.innerHTML = `<form id="f" class="card bloco" novalidate autocomplete="off">
+    ${campo('Nome *', `<input type="text" name="nome" value="${esc(c?.nome)}">`)}
+    ${campo('Categoria', `<select name="categoria">${opcoes(CATEGORIAS_GASTO, c?.categoria || 'Outros')}</select>`)}
+    ${campo('Site para pagar (link)', `<input type="text" name="link" inputmode="url" placeholder="https://…" value="${esc(c?.link)}">`)}
+    ${campo(`Valor em ${nomeMes(mes)} (R$)`, `<input type="text" name="valor" inputmode="decimal" placeholder="0,00" value="${esc(valorCampo(l.valor))}">`)}
+    <label class="check"><input type="checkbox" name="pago" ${num(l.pago) ? 'checked' : ''}> Pago em ${nomeMes(mes)}</label>
+    <div class="acoes">
+      ${c ? '<button type="button" class="btn perigo" id="ocultar">Ocultar conta</button>' : ''}
+      <button type="submit" class="btn prim">Salvar</button>
+    </div></form>`;
+  const f = $('#f');
+  f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const nome = f.elements.nome.value.trim();
+    if (!nome) return toast('Preencha o nome da conta.');
+    let link = f.elements.link.value.trim();
+    if (link && !link.includes('://')) link = `https://${link}`;
+    const novo = Dados.gravar('gastos_contas', uid, { nome, categoria: f.elements.categoria.value, link, ativa: 1,
+      ...(c ? {} : { ordem: Math.max(0, ...Dados.gastosContas().map((x) => num(x.ordem))) + 1 }) });
+    const valor = lerValor(f.elements.valor.value), pago = f.elements.pago.checked;
+    if (valor || pago || (uid && Dados.lancGasto(uidLancGasto(uid, mes)))) salvarLancGasto(novo, mes, { valor, pago });
+    formAberto = false;
+    toast('Conta salva');
+    voltar(`#/gastos?mes=${mes}`);
+  });
+  $('#ocultar')?.addEventListener('click', () => {
+    if (!confirm('Ocultar esta conta dos próximos meses? Os valores já lançados continuam no histórico.')) return;
+    Dados.gravar('gastos_contas', uid, { ativa: 0 });
+    formAberto = false;
+    voltar(`#/gastos?mes=${mes}`);
+  });
+}
+
+function vGastosAno(r) {
+  const ano = r.q.get('ano') || mesISO().slice(0, 4);
+  titulo(`Gastos ${ano}`, true);
+  let acum = 0, tg = 0, tr = 0;
+  const linhas = [];
+  for (let i = 1; i <= 12; i++) {
+    const mes = `${ano}-${String(i).padStart(2, '0')}`;
+    const g = soma(gastosDoMes(mes), (c) => c.valor), rd = lucroGamezera(mesDesloc(mes, -1));
+    if (!g && !rd) continue;
+    acum += rd - g; tg += g; tr += rd;
+    linhas.push(`<a class="card item" href="#/gastos?mes=${mes}">
+      <div class="item-topo"><span class="item-nome">${MESES[i - 1]}</span><b class="${rd - g >= 0 ? 'pos' : 'neg'}">${fmtBRL(rd - g)}</b></div>
+      <div class="linha"><span>gastos <b>${fmtBRL(g)}</b></span><span>lucro mês ant. <b>${fmtBRL(rd)}</b></span><span>${rd ? Math.round((g / rd) * 100) : 0}% da renda</span><span>acumulado ${fmtBRL(acum)}</span></div></a>`);
+  }
+  tela.innerHTML = `<div class="grade">
+      ${kpi('Gastos no ano', fmtBRL(tg), { cor: 'var(--verm)', corValor: 'var(--verm)' })}
+      ${kpi('Sobrou no ano', fmtBRL(tr - tg), { cor: 'var(--verde)', corValor: tr - tg >= 0 ? 'var(--verde)' : 'var(--verm)' })}
+    </div>
+    <div class="itens" style="margin-top:12px">${linhas.join('') || '<div class="vazio">Nada lançado neste ano.</div>'}</div>`;
+}
+
 // ─── Mais / Configuração ────────────────────────────────────────────────────
 function vMais() {
   titulo('Mais');
@@ -1117,6 +1232,7 @@ function vMais() {
       <a href="#/despesas"><span>💸</span><b>Despesas</b><small>${fmtBRL(soma(Dados.despesas().filter((d) => (d.data || '').startsWith(mesISO())), (d) => num(d.valor)))} no mês</small></a>
       <a href="#/fiado"><span>🧾</span><b>Fiado</b><small>${abertas.length} em aberto</small></a>
       <a href="#/clientes"><span>👥</span><b>Clientes</b><small>›</small></a>
+      <a href="#/gastos"><span>💳</span><b>Gastos</b><small>contas do mês ›</small></a>
       <a href="#/config"><span>⚙️</span><b>Sincronização</b><small>${{ ok: 'ligada', sincronizando: 'ligada', erro: 'com erro', desligado: 'desligada' }[e.status]}</small></a>
     </div>
     <div class="sub" style="margin-top:14px;text-align:center">Gestão de Vendas · versão ${GV_VERSAO}</div>`;
