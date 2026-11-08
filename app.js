@@ -552,7 +552,7 @@ function vForm(r) {
       <div class="titulo">Compra</div>
       <div class="duas">
         ${campo('Data da compra *', entrada('data_compra', 'date'))}
-        ${campo('Preço de compra (R$) *', entrada('preco_compra'))}
+        ${campo('Preço de compra (R$) — vazio = 0', entrada('preco_compra'))}
       </div>
       <div class="duas">
         ${campo('Preço previsto de venda (R$)', entrada('preco_previsto'))}
@@ -820,8 +820,8 @@ function vForm(r) {
       const gerado = nomeGerado(c);
       nome = p && gerado === nomeInicial ? p.nome : gerado;
     }
-    const dc = el('data_compra').value, pcTxt = el('preco_compra').value.trim();
-    if (!dc || !pcTxt) return erro('Preencha data e preço de compra.', dc ? 'preco_compra' : 'data_compra');
+    const dc = el('data_compra').value, pcTxt = el('preco_compra').value.trim() || '0'; // sem preço de compra → 0
+    if (!dc) return erro('Preencha a data da compra.', 'data_compra');
 
     let parcelasNovas = []; // [{data, valor}] gravadas ao salvar
     if (el('pag_fiado').checked && !parcelasGeradas) {
@@ -841,8 +841,8 @@ function vForm(r) {
     const unid = [{ data: dc, preco: lerValor(pcTxt) }];
     if (!p && $('#lote')?.checked) {
       for (const [i, u] of unidades.entries()) {
-        if (!u.data || !String(u.preco).trim()) return erro(`Preencha a data e o preço da ${i + 2}ª unidade (ou remova).`);
-        unid.push({ data: u.data, preco: lerValor(u.preco) });
+        if (!u.data) return erro(`Preencha a data da ${i + 2}ª unidade (ou remova).`);
+        unid.push({ data: u.data, preco: lerValor(u.preco || '0') });
       }
       if (unid.length > 1 && !confirm(`Serão cadastradas ${unid.length} unidades:\n\n${unid.map((u, i) => `${i + 1}ª — ${fmtData(u.data)} — ${fmtBRL(u.preco)}`).join('\n')}\n\nTotal: ${fmtBRL(soma(unid, (u) => u.preco))}\n\nConfirmar?`)) return;
     }
