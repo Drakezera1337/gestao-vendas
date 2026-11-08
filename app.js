@@ -372,8 +372,8 @@ function vProduto(r) {
       ${!eCel && cats.includes('servico') ? linhaDet('Serviço', esc(p.servico_desc || 'Sim')) : ''}
       ${eCel ? linhaDet('Armazenamento', esc(p.armazenamento)) + linhaDet('Saúde da bateria', esc(p.saude_bateria)) : ''}
       ${linhaDet('Status', esc(p.status_item))}
-      ${linhaDet('Como chegou a compra', esc(p.origem_compra))}
-      ${p.data_venda ? linhaDet('Como chegou a venda', esc(p.origem_venda)) : ''}
+      ${linhaDet('Origem da compra', esc(p.origem_compra))}
+      ${p.origem_venda ? linhaDet('Origem da venda', esc(p.origem_venda)) : ''}
       ${linhaDet('Observações', esc(p.observacoes))}
       ${linhaDet('Categorias', eCel ? '' : esc(subTxt(p)))}
     </div>
@@ -558,7 +558,10 @@ function vForm(r) {
         ${campo('Preço previsto de venda (R$)', entrada('preco_previsto'))}
         <div class="campo" style="display:flex;align-items:flex-end;padding-bottom:12px"><span id="lucroPrevisto" class="sub"></span></div>
       </div>
-      ${campo('Como chegou esta compra?', `<select name="origem_compra">${opcoes(ORIGENS)}</select>`)}
+      <div class="duas">
+        ${campo('Origem da compra', `<select name="origem_compra">${opcoes(ORIGENS)}</select>`)}
+        ${campo('Origem da venda', `<select name="origem_venda">${opcoes(ORIGENS)}</select>`)}
+      </div>
       ${p ? '' : `<label class="check"><input type="checkbox" id="lote"> Adicionar em lote (mesmo produto, outras datas)</label>
       <div id="b_lote" class="oculto">
         <div class="sub">Data e preço acima são os da 1ª unidade. Adicione as outras:</div>
@@ -593,7 +596,6 @@ function vForm(r) {
           ${campo('Nome do comprador', entrada('nome_comprador', 'text', 'autocapitalize="words"'))}
           ${campo('Telefone do comprador', entrada('tel_comprador', 'tel'))}
         </div>
-        ${campo('Como chegou esta venda?', `<select name="origem_venda">${opcoes(ORIGENS)}</select>`)}
         <div class="titulo" style="margin-top:14px">Forma de pagamento</div>
         ${[['cartao', 'val_cartao', '💳 Cartão'], ['pix', 'val_pix', '💚 Pix'], ['dinheiro', 'val_dinheiro', '💵 Dinheiro'], ['fiado', 'val_fiado', '🧾 Fiado']]
           .map(([k, v, t]) => `<div class="forma"><div class="pagamento"><label class="check"><input type="checkbox" name="pag_${k}"> ${t}</label>
@@ -870,7 +872,7 @@ function vForm(r) {
       plataforma: eCel ? '' : el('plataforma').value, num_serie: eCel ? '' : txt('num_serie'),
       status_item: el('status_item').value,
       origem_compra: el('origem_compra').value,
-      origem_venda: el('data_venda').value ? el('origem_venda').value : '',
+      origem_venda: el('origem_venda').value,
     };
     for (const k of ['cartao', 'pix', 'fiado']) {
       const tipo = el(`pag_${k}`).checked ? el(`rec_${k}_tipo`).value : '';
@@ -1276,7 +1278,7 @@ function vTrafego(r) {
       ${kpi('Custo por compra', t.cN && t.inv.Compra ? fmtBRL(t.inv.Compra / t.cN) : '—')}
       ${kpi('Retorno das compras', retC === null ? '—' : reais(retC), { nota: 'lucro vendido + previsto por R$ 1', corValor: retC === null ? '' : retC >= 1 ? 'var(--verde)' : 'var(--verm)' })}
     </div>
-    ${semV || semC ? `<div class="aviso" style="margin-top:10px">⚠ ${semV} venda(s) e ${semC} compra(s) deste mês estão sem “Como chegou”. Preencha no cadastro do produto.</div>` : ''}
+    ${semV || semC ? `<div class="aviso" style="margin-top:10px">⚠ ${semV} venda(s) e ${semC} compra(s) deste mês estão sem “Origem”. Preencha no cadastro do produto.</div>` : ''}
     <div class="acoes"><a class="btn prim" href="#/investimento/novo?mes=${mes}">+ Investimento</a></div>
     <div class="secao" style="--cor:var(--amb)">📣 Investimentos de ${nomeMes(mes)}</div>
     <div class="itens">${invs.length ? invs.map((x) => `<a class="card item" href="#/investimento/${x.uid}?mes=${mes}">
