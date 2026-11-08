@@ -1234,11 +1234,9 @@ function vGastosAno(r) {
 
 // ─── Tráfego pago (investimento em anúncio × vendas/compras que vieram dele) ──
 function resumoTrafego(mes) {
-  const inv = { Venda: 0, Compra: 0 }, conv = { Venda: 0, Compra: 0 };
-  for (const t of Dados.trafego().filter((x) => (x.data_inicio || '').startsWith(mes))) {
-    const k = t.objetivo === 'Compra' ? 'Compra' : 'Venda';
-    inv[k] += num(t.valor); conv[k] += num(t.conversas);
-  }
+  // sem objetivo fixo: o mesmo investimento traz vendas e compras
+  let inv = 0, conv = 0;
+  for (const t of Dados.trafego().filter((x) => (x.data_inicio || '').startsWith(mes))) { inv += num(t.valor); conv += num(t.conversas); }
   const prods = Dados.produtos();
   const vendas = prods.filter((p) => (p.data_venda || '').startsWith(mes) && num(p.preco_venda) > 0);
   const compras = prods.filter((p) => (p.data_compra || '').startsWith(mes) && num(p.preco_compra) > 0);
@@ -1250,7 +1248,8 @@ function resumoTrafego(mes) {
     (porC[k] ||= [0, 0, 0]); porC[k][0]++; porC[k][1] += custo(p); porC[k][2] += l;
   }
   const av = porV[ORIGEM_ANUNCIO] || [0, 0], ac = porC[ORIGEM_ANUNCIO] || [0, 0, 0];
-  return { inv, conv, porV, porC, vN: av[0], vLucro: av[1], cN: ac[0], cValor: ac[1], cLucro: ac[2], total: inv.Venda + inv.Compra };
+  return { conv, porV, porC, vN: av[0], vLucro: av[1], cN: ac[0], cValor: ac[1], cLucro: ac[2], total: inv,
+    negocios: av[0] + ac[0], lucro: av[1] + ac[2] };
 }
 
 function vTrafego(r) {
@@ -1258,7 +1257,7 @@ function vTrafego(r) {
   titulo('Tráfego pago', true);
   const t = resumoTrafego(mes);
   const reais = (v) => `R$ ${v.toFixed(2).replace('.', ',')}`;
-  const retV = t.inv.Venda ? t.vLucro / t.inv.Venda : null, retC = t.inv.Compra ? t.cLucro / t.inv.Compra : null;
+  const ret = t.total ? t.lucro / t.total : null, sobra = t.lucro - t.total;
   const invs = Dados.trafego().filter((x) => (x.data_inicio || '').startsWith(mes)).sort((a, b) => (a.data_inicio > b.data_inicio ? 1 : -1));
   const semV = (t.porV['(sem origem)'] || [0])[0], semC = (t.porC['(sem origem)'] || [0])[0];
   const lista = (obj, fmt) => Object.entries(obj).sort((a, b) => b[1][0] - a[1][0]).map(([k, v]) => linhaDet(esc(k), fmt(v))).join('');
@@ -1270,20 +1269,19 @@ function vTrafego(r) {
       ${mes !== mesISO() ? '<button type="button" class="btn peq" data-ir="#/trafego">Atual</button>' : ''}
     </div>
     <div class="grade" style="margin-top:12px">
-      ${kpi('Investido no mês', fmtBRL(t.total), { nota: `venda ${fmtBRL(t.inv.Venda)} · compra ${fmtBRL(t.inv.Compra)}`, cor: 'var(--verm)', corValor: 'var(--verm)' })}
-      ${kpi('Vendas pelo anúncio', String(t.vN), { nota: `lucro ${fmtBRL(t.vLucro)}`, cor: 'var(--verde)', corValor: 'var(--verde)' })}
-      ${kpi('Custo por venda', t.vN && t.inv.Venda ? fmtBRL(t.inv.Venda / t.vN) : '—')}
-      ${kpi('Retorno das vendas', retV === null ? '—' : reais(retV), { nota: 'lucro por R$ 1 investido', corValor: retV === null ? '' : retV >= 1 ? 'var(--verde)' : 'var(--verm)' })}
-      ${kpi('Compras pelo anúncio', String(t.cN), { nota: `${fmtBRL(t.cValor)} em mercadoria`, cor: 'var(--azul)' })}
-      ${kpi('Custo por compra', t.cN && t.inv.Compra ? fmtBRL(t.inv.Compra / t.cN) : '—')}
-      ${kpi('Retorno das compras', retC === null ? '—' : reais(retC), { nota: 'lucro vendido + previsto por R$ 1', corValor: retC === null ? '' : retC >= 1 ? 'var(--verde)' : 'var(--verm)' })}
+      ${kpi('Investido no mês', fmtBRL(t.total), { nota: t.conv ? `${t.conv} conversas` : '', cor: 'var(--verm)', corValor: 'var(--verm)' })}
+      ${kpi('Vendas pelo tráfego', String(t.vN), { nota: `lucro ${fmtBRL(t.vLucro)}`, cor: 'var(--verde)', corValor: 'var(--verde)' })}
+      ${kpi('Compras pelo tráfego', String(t.cN), { nota: `${fmtBRL(t.cValor)} · lucro prev. ${fmtBRL(t.cLucro)}`, cor: 'var(--azul)' })}
+      ${kpi('Custo por negócio', t.negocios && t.total ? fmtBRL(t.total / t.negocios) : '—', { nota: 'investido ÷ (vendas + compras)' })}
+      ${kpi('Retorno', ret === null ? '—' : reais(ret), { nota: 'lucro (vendas + compras) por R$ 1', corValor: ret === null ? '' : ret >= 1 ? 'var(--verde)' : 'var(--verm)' })}
+      ${kpi('Sobra depois do anúncio', t.total ? fmtBRL(sobra) : '—', { nota: 'lucro gerado − investido', corValor: !t.total ? '' : sobra >= 0 ? 'var(--verde)' : 'var(--verm)' })}
     </div>
     ${semV || semC ? `<div class="aviso" style="margin-top:10px">⚠ ${semV} venda(s) e ${semC} compra(s) deste mês estão sem “Origem”. Preencha no cadastro do produto.</div>` : ''}
     <div class="acoes"><a class="btn prim" href="#/investimento/novo?mes=${mes}">+ Investimento</a></div>
     <div class="secao" style="--cor:var(--amb)">📣 Investimentos de ${nomeMes(mes)}</div>
     <div class="itens">${invs.length ? invs.map((x) => `<a class="card item" href="#/investimento/${x.uid}?mes=${mes}">
-        <div class="item-topo"><span class="item-nome">${esc(x.objetivo === 'Compra' ? 'Anúncio de compra' : 'Anúncio de venda')}</span><b class="neg">${fmtBRL(x.valor)}</b></div>
-        <div class="linha"><span>${fmtData(x.data_inicio).slice(0, 5)}${x.data_fim ? ` a ${fmtData(x.data_fim).slice(0, 5)}` : ''}</span><span>${esc(x.canal)}</span>${num(x.conversas) ? `<span>${num(x.conversas)} conversas · ${fmtBRL(num(x.valor) / num(x.conversas))} cada</span>` : ''}</div></a>`).join('')
+        <div class="item-topo"><span class="item-nome">${esc(x.canal || 'Tráfego pago')}</span><b class="neg">${fmtBRL(x.valor)}</b></div>
+        <div class="linha"><span>${fmtData(x.data_inicio).slice(0, 5)}${x.data_fim ? ` a ${fmtData(x.data_fim).slice(0, 5)}` : ''}</span>${x.obs ? `<span>${esc(x.obs)}</span>` : ''}${num(x.conversas) ? `<span>${num(x.conversas)} conversas · ${fmtBRL(num(x.valor) / num(x.conversas))} cada</span>` : ''}</div></a>`).join('')
       : '<div class="vazio">Nenhum investimento lançado. Toque em “+ Investimento”.</div>'}</div>
     <div class="secao" style="--cor:var(--verde)">Vendas por origem</div>
     <div class="card det">${lista(t.porV, (v) => `${v[0]} · lucro ${fmtBRL(v[1])}`) || linhaDet('Nenhuma venda no mês', '')}</div>
@@ -1298,14 +1296,13 @@ function vInvestimento(r) {
   const x = uid ? Dados.investimento(uid) : null;
   titulo(x ? 'Editar investimento' : 'Novo investimento', true);
   if (uid && !x) { tela.innerHTML = '<div class="vazio">Investimento não encontrado.</div>'; return; }
-  // padrão: 1ª quinzena = anúncio de venda; 2ª = anúncio de compra (R$ 25/dia)
+  // padrão: a quinzena atual (R$ 25/dia)
   const hoje = mes === mesISO() ? hojeISO() : `${mes}-01`;
   const dia = Number(hoje.slice(8, 10)), ult = new Date(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0).getDate();
-  const pad = { objetivo: dia <= 15 ? 'Venda' : 'Compra', data_inicio: `${mes}-${dia <= 15 ? '01' : '16'}`, data_fim: `${mes}-${dia <= 15 ? '15' : String(ult)}` };
+  const pad = { data_inicio: `${mes}-${dia <= 15 ? '01' : '16'}`, data_fim: `${mes}-${dia <= 15 ? '15' : String(ult)}` };
   const c = x || pad;
   formAberto = true;
   tela.innerHTML = `<form id="f" class="card bloco" novalidate autocomplete="off">
-    ${campo('Objetivo do anúncio', `<select name="objetivo">${['Venda', 'Compra'].map((o) => `<option value="${o}" ${o === c.objetivo ? 'selected' : ''}>${o === 'Venda' ? 'Vender (anúncio de venda)' : 'Comprar (anúncio de compra)'}</option>`).join('')}</select>`)}
     <div class="duas">
       ${campo('Início *', `<input type="date" name="data_inicio" value="${esc(c.data_inicio)}">`)}
       ${campo('Fim', `<input type="date" name="data_fim" value="${esc(c.data_fim || '')}">`)}
@@ -1337,7 +1334,7 @@ function vInvestimento(r) {
     if (!di) return toast('Preencha a data de início.');
     if (df && df < di) return toast('O fim é antes do início.');
     if (!valor) return toast('Preencha o total investido.');
-    Dados.gravar('trafego', uid, { data_inicio: di, data_fim: df, objetivo: f.elements.objetivo.value, valor,
+    Dados.gravar('trafego', uid, { data_inicio: di, data_fim: df, valor,
       conversas: Number(f.elements.conversas.value) || 0, canal: f.elements.canal.value, obs: f.elements.obs.value.trim() });
     formAberto = false;
     toast('Investimento salvo');
