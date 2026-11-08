@@ -62,7 +62,8 @@ function render() {
   if (aba) $$('.abas a').forEach((el) => el.classList.toggle('ativa', el.dataset.aba === aba));
   const telas = { inicio: vInicio, lista: vLista, produto: vProduto, form: vForm, despesas: vDespesas,
     despesa: vDespesa, fiado: vFiado, clientes: vClientes, cliente: vCliente, mais: vMais, config: vConfig,
-    'lucro-fiado': vLucroFiado, gastos: vGastos, 'gasto-conta': vGastoConta, 'gastos-ano': vGastosAno };
+    'lucro-fiado': vLucroFiado, gastos: vGastos, 'gasto-conta': vGastoConta, 'gastos-ano': vGastosAno,
+    trafego: vTrafego, investimento: vInvestimento };
   (telas[v] || vInicio)(r);
   tela.scrollTo(0, mesma ? y : 0);
 }
@@ -371,6 +372,8 @@ function vProduto(r) {
       ${!eCel && cats.includes('servico') ? linhaDet('Serviço', esc(p.servico_desc || 'Sim')) : ''}
       ${eCel ? linhaDet('Armazenamento', esc(p.armazenamento)) + linhaDet('Saúde da bateria', esc(p.saude_bateria)) : ''}
       ${linhaDet('Status', esc(p.status_item))}
+      ${linhaDet('Como chegou a compra', esc(p.origem_compra))}
+      ${p.data_venda ? linhaDet('Como chegou a venda', esc(p.origem_venda)) : ''}
       ${linhaDet('Observações', esc(p.observacoes))}
       ${linhaDet('Categorias', eCel ? '' : esc(subTxt(p)))}
     </div>
@@ -555,6 +558,7 @@ function vForm(r) {
         ${campo('Preço previsto de venda (R$)', entrada('preco_previsto'))}
         <div class="campo" style="display:flex;align-items:flex-end;padding-bottom:12px"><span id="lucroPrevisto" class="sub"></span></div>
       </div>
+      ${campo('Como chegou esta compra?', `<select name="origem_compra">${opcoes(ORIGENS)}</select>`)}
       ${p ? '' : `<label class="check"><input type="checkbox" id="lote"> Adicionar em lote (mesmo produto, outras datas)</label>
       <div id="b_lote" class="oculto">
         <div class="sub">Data e preço acima são os da 1ª unidade. Adicione as outras:</div>
@@ -589,6 +593,7 @@ function vForm(r) {
           ${campo('Nome do comprador', entrada('nome_comprador', 'text', 'autocapitalize="words"'))}
           ${campo('Telefone do comprador', entrada('tel_comprador', 'tel'))}
         </div>
+        ${campo('Como chegou esta venda?', `<select name="origem_venda">${opcoes(ORIGENS)}</select>`)}
         <div class="titulo" style="margin-top:14px">Forma de pagamento</div>
         ${[['cartao', 'val_cartao', '💳 Cartão'], ['pix', 'val_pix', '💚 Pix'], ['dinheiro', 'val_dinheiro', '💵 Dinheiro'], ['fiado', 'val_fiado', '🧾 Fiado']]
           .map(([k, v, t]) => `<div class="forma"><div class="pagamento"><label class="check"><input type="checkbox" name="pag_${k}"> ${t}</label>
@@ -632,7 +637,7 @@ function vForm(r) {
   if (p) {
     for (const n of ['nome', 'armazenamento', 'saude_bateria', 'plataforma', 'num_serie', 'console_nome', 'jogos_desc',
       'data_compra', 'data_envio_rep', 'data_entrega_rep', 'data_venda', 'nome_comprador', 'tel_comprador',
-      'observacoes', 'status_item']) setV(n, p[n]);
+      'observacoes', 'status_item', 'origem_compra', 'origem_venda']) setV(n, p[n]);
     for (const n of ['preco_compra', 'preco_previsto', 'custo_reparo', 'preco_venda', 'val_cartao', 'val_pix', 'val_dinheiro', 'val_fiado']) setV(n, valorCampo(p[n]));
     setV('ctrl_orig', num(p.ctrl_orig) || ''); setV('ctrl_para', num(p.ctrl_para) || '');
     // recebedor de cada forma (venda antiga sem ele: sugere o recebedor único de antes)
@@ -864,6 +869,8 @@ function vForm(r) {
       data_entrega_rep: el('reparo').checked ? el('data_entrega_rep').value : '',
       plataforma: eCel ? '' : el('plataforma').value, num_serie: eCel ? '' : txt('num_serie'),
       status_item: el('status_item').value,
+      origem_compra: el('origem_compra').value,
+      origem_venda: el('data_venda').value ? el('origem_venda').value : '',
     };
     for (const k of ['cartao', 'pix', 'fiado']) {
       const tipo = el(`pag_${k}`).checked ? el(`rec_${k}_tipo`).value : '';
@@ -1223,6 +1230,125 @@ function vGastosAno(r) {
     <div class="itens" style="margin-top:12px">${linhas.join('') || '<div class="vazio">Nada lançado neste ano.</div>'}</div>`;
 }
 
+// ─── Tráfego pago (investimento em anúncio × vendas/compras que vieram dele) ──
+function resumoTrafego(mes) {
+  const inv = { Venda: 0, Compra: 0 }, conv = { Venda: 0, Compra: 0 };
+  for (const t of Dados.trafego().filter((x) => (x.data_inicio || '').startsWith(mes))) {
+    const k = t.objetivo === 'Compra' ? 'Compra' : 'Venda';
+    inv[k] += num(t.valor); conv[k] += num(t.conversas);
+  }
+  const prods = Dados.produtos();
+  const vendas = prods.filter((p) => (p.data_venda || '').startsWith(mes) && num(p.preco_venda) > 0);
+  const compras = prods.filter((p) => (p.data_compra || '').startsWith(mes) && num(p.preco_compra) > 0);
+  const porV = {}, porC = {};
+  for (const p of vendas) { const k = p.origem_venda || '(sem origem)'; (porV[k] ||= [0, 0]); porV[k][0]++; porV[k][1] += num(p.preco_venda) - custo(p); }
+  for (const p of compras) {
+    const k = p.origem_compra || '(sem origem)';
+    const l = p.data_venda ? num(p.preco_venda) - custo(p) : (num(p.preco_previsto) ? num(p.preco_previsto) - custo(p) : 0);
+    (porC[k] ||= [0, 0, 0]); porC[k][0]++; porC[k][1] += custo(p); porC[k][2] += l;
+  }
+  const av = porV[ORIGEM_ANUNCIO] || [0, 0], ac = porC[ORIGEM_ANUNCIO] || [0, 0, 0];
+  return { inv, conv, porV, porC, vN: av[0], vLucro: av[1], cN: ac[0], cValor: ac[1], cLucro: ac[2], total: inv.Venda + inv.Compra };
+}
+
+function vTrafego(r) {
+  const mes = r.q.get('mes') || mesISO();
+  titulo('Tráfego pago', true);
+  const t = resumoTrafego(mes);
+  const reais = (v) => `R$ ${v.toFixed(2).replace('.', ',')}`;
+  const retV = t.inv.Venda ? t.vLucro / t.inv.Venda : null, retC = t.inv.Compra ? t.cLucro / t.inv.Compra : null;
+  const invs = Dados.trafego().filter((x) => (x.data_inicio || '').startsWith(mes)).sort((a, b) => (a.data_inicio > b.data_inicio ? 1 : -1));
+  const semV = (t.porV['(sem origem)'] || [0])[0], semC = (t.porC['(sem origem)'] || [0])[0];
+  const lista = (obj, fmt) => Object.entries(obj).sort((a, b) => b[1][0] - a[1][0]).map(([k, v]) => linhaDet(esc(k), fmt(v))).join('');
+  tela.innerHTML = `
+    <div class="periodo">
+      <button type="button" class="btn peq" data-ir="#/trafego?mes=${mesDesloc(mes, -1)}" aria-label="Mês anterior">◀</button>
+      <b>${nomeMes(mes)}</b>
+      <button type="button" class="btn peq" data-ir="#/trafego?mes=${mesDesloc(mes, 1)}" aria-label="Próximo mês">▶</button>
+      ${mes !== mesISO() ? '<button type="button" class="btn peq" data-ir="#/trafego">Atual</button>' : ''}
+    </div>
+    <div class="grade" style="margin-top:12px">
+      ${kpi('Investido no mês', fmtBRL(t.total), { nota: `venda ${fmtBRL(t.inv.Venda)} · compra ${fmtBRL(t.inv.Compra)}`, cor: 'var(--verm)', corValor: 'var(--verm)' })}
+      ${kpi('Vendas pelo anúncio', String(t.vN), { nota: `lucro ${fmtBRL(t.vLucro)}`, cor: 'var(--verde)', corValor: 'var(--verde)' })}
+      ${kpi('Custo por venda', t.vN && t.inv.Venda ? fmtBRL(t.inv.Venda / t.vN) : '—')}
+      ${kpi('Retorno das vendas', retV === null ? '—' : reais(retV), { nota: 'lucro por R$ 1 investido', corValor: retV === null ? '' : retV >= 1 ? 'var(--verde)' : 'var(--verm)' })}
+      ${kpi('Compras pelo anúncio', String(t.cN), { nota: `${fmtBRL(t.cValor)} em mercadoria`, cor: 'var(--azul)' })}
+      ${kpi('Custo por compra', t.cN && t.inv.Compra ? fmtBRL(t.inv.Compra / t.cN) : '—')}
+      ${kpi('Retorno das compras', retC === null ? '—' : reais(retC), { nota: 'lucro vendido + previsto por R$ 1', corValor: retC === null ? '' : retC >= 1 ? 'var(--verde)' : 'var(--verm)' })}
+    </div>
+    ${semV || semC ? `<div class="aviso" style="margin-top:10px">⚠ ${semV} venda(s) e ${semC} compra(s) deste mês estão sem “Como chegou”. Preencha no cadastro do produto.</div>` : ''}
+    <div class="acoes"><a class="btn prim" href="#/investimento/novo?mes=${mes}">+ Investimento</a></div>
+    <div class="secao" style="--cor:var(--amb)">📣 Investimentos de ${nomeMes(mes)}</div>
+    <div class="itens">${invs.length ? invs.map((x) => `<a class="card item" href="#/investimento/${x.uid}?mes=${mes}">
+        <div class="item-topo"><span class="item-nome">${esc(x.objetivo === 'Compra' ? 'Anúncio de compra' : 'Anúncio de venda')}</span><b class="neg">${fmtBRL(x.valor)}</b></div>
+        <div class="linha"><span>${fmtData(x.data_inicio).slice(0, 5)}${x.data_fim ? ` a ${fmtData(x.data_fim).slice(0, 5)}` : ''}</span><span>${esc(x.canal)}</span>${num(x.conversas) ? `<span>${num(x.conversas)} conversas · ${fmtBRL(num(x.valor) / num(x.conversas))} cada</span>` : ''}</div></a>`).join('')
+      : '<div class="vazio">Nenhum investimento lançado. Toque em “+ Investimento”.</div>'}</div>
+    <div class="secao" style="--cor:var(--verde)">Vendas por origem</div>
+    <div class="card det">${lista(t.porV, (v) => `${v[0]} · lucro ${fmtBRL(v[1])}`) || linhaDet('Nenhuma venda no mês', '')}</div>
+    <div class="secao" style="--cor:var(--azul)">Compras por origem</div>
+    <div class="card det">${lista(t.porC, (v) => `${v[0]} · ${fmtBRL(v[1])}`) || linhaDet('Nenhuma compra no mês', '')}</div>`;
+  $$('[data-ir]', tela).forEach((b) => b.addEventListener('click', () => ir(b.dataset.ir)));
+}
+
+function vInvestimento(r) {
+  const uid = r.partes[1] !== 'novo' ? r.partes[1] : null;
+  const mes = r.q.get('mes') || mesISO();
+  const x = uid ? Dados.investimento(uid) : null;
+  titulo(x ? 'Editar investimento' : 'Novo investimento', true);
+  if (uid && !x) { tela.innerHTML = '<div class="vazio">Investimento não encontrado.</div>'; return; }
+  // padrão: 1ª quinzena = anúncio de venda; 2ª = anúncio de compra (R$ 25/dia)
+  const hoje = mes === mesISO() ? hojeISO() : `${mes}-01`;
+  const dia = Number(hoje.slice(8, 10)), ult = new Date(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0).getDate();
+  const pad = { objetivo: dia <= 15 ? 'Venda' : 'Compra', data_inicio: `${mes}-${dia <= 15 ? '01' : '16'}`, data_fim: `${mes}-${dia <= 15 ? '15' : String(ult)}` };
+  const c = x || pad;
+  formAberto = true;
+  tela.innerHTML = `<form id="f" class="card bloco" novalidate autocomplete="off">
+    ${campo('Objetivo do anúncio', `<select name="objetivo">${['Venda', 'Compra'].map((o) => `<option value="${o}" ${o === c.objetivo ? 'selected' : ''}>${o === 'Venda' ? 'Vender (anúncio de venda)' : 'Comprar (anúncio de compra)'}</option>`).join('')}</select>`)}
+    <div class="duas">
+      ${campo('Início *', `<input type="date" name="data_inicio" value="${esc(c.data_inicio)}">`)}
+      ${campo('Fim', `<input type="date" name="data_fim" value="${esc(c.data_fim || '')}">`)}
+    </div>
+    <div class="duas">
+      ${campo('Valor por dia (R$)', `<input type="text" name="dia" inputmode="decimal" value="${x ? '' : '25'}">`)}
+      ${campo('Total investido (R$) *', `<input type="text" name="valor" inputmode="decimal" placeholder="0,00" value="${esc(valorCampo(x?.valor))}">`)}
+    </div>
+    <div class="sub" id="calc"></div>
+    ${campo('Canal', `<select name="canal">${opcoes(CANAIS_TRAFEGO, c.canal || CANAIS_TRAFEGO[0])}</select>`)}
+    ${campo('Conversas recebidas (opcional)', `<input type="number" name="conversas" inputmode="numeric" value="${num(x?.conversas) || ''}">`)}
+    ${campo('Observação', `<input type="text" name="obs" value="${esc(x?.obs)}">`)}
+    <div class="acoes">
+      ${x ? '<button type="button" class="btn perigo" id="excluir">Excluir</button>' : ''}
+      <button type="submit" class="btn prim">Salvar</button>
+    </div></form>`;
+  const f = $('#f');
+  const calc = () => {
+    const a = f.elements.data_inicio.value, b = f.elements.data_fim.value, d = lerValor(f.elements.dia.value);
+    const dias = a && b ? Math.round((new Date(b) - new Date(a)) / 86400000) + 1 : 0;
+    if (dias > 0 && d) { f.elements.valor.value = valorCampo(d * dias); $('#calc').textContent = `${fmtBRL(d)} × ${dias} dias = ${fmtBRL(d * dias)}`; }
+    else $('#calc').textContent = dias > 0 ? `${dias} dias` : '';
+  };
+  ['data_inicio', 'data_fim', 'dia'].forEach((n) => f.elements[n].addEventListener('input', calc));
+  calc();
+  f.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const di = f.elements.data_inicio.value, df = f.elements.data_fim.value, valor = lerValor(f.elements.valor.value);
+    if (!di) return toast('Preencha a data de início.');
+    if (df && df < di) return toast('O fim é antes do início.');
+    if (!valor) return toast('Preencha o total investido.');
+    Dados.gravar('trafego', uid, { data_inicio: di, data_fim: df, objetivo: f.elements.objetivo.value, valor,
+      conversas: Number(f.elements.conversas.value) || 0, canal: f.elements.canal.value, obs: f.elements.obs.value.trim() });
+    formAberto = false;
+    toast('Investimento salvo');
+    voltar(`#/trafego?mes=${di.slice(0, 7)}`);
+  });
+  $('#excluir')?.addEventListener('click', () => {
+    if (!confirm('Excluir este investimento?')) return;
+    Dados.excluir('trafego', uid);
+    formAberto = false;
+    voltar(`#/trafego?mes=${mes}`);
+  });
+}
+
 // ─── Mais / Configuração ────────────────────────────────────────────────────
 function vMais() {
   titulo('Mais');
@@ -1233,6 +1359,7 @@ function vMais() {
       <a href="#/fiado"><span>🧾</span><b>Fiado</b><small>${abertas.length} em aberto</small></a>
       <a href="#/clientes"><span>👥</span><b>Clientes</b><small>›</small></a>
       <a href="#/gastos"><span>💳</span><b>Gastos</b><small>contas do mês ›</small></a>
+      <a href="#/trafego"><span>📣</span><b>Tráfego pago</b><small>anúncios × vendas ›</small></a>
       <a href="#/config"><span>⚙️</span><b>Sincronização</b><small>${{ ok: 'ligada', sincronizando: 'ligada', erro: 'com erro', desligado: 'desligada' }[e.status]}</small></a>
     </div>
     <div class="sub" style="margin-top:14px;text-align:center">Gestão de Vendas · versão ${GV_VERSAO}</div>`;

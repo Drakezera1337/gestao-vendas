@@ -2,7 +2,7 @@
 // Formato: { produtos: {uid: registro}, despesas: {...}, parcelas: {...}, exclusoes: {tabela: {uid: ms}} }
 // Todo registro tem `u` = momento da última alteração (ms). Na mescla vence o `u` mais novo;
 // uma exclusão vence se for mais nova que a última edição.
-const TABELAS = ['produtos', 'despesas', 'parcelas', 'gastos_contas', 'gastos_lanc'];
+const TABELAS = ['produtos', 'despesas', 'parcelas', 'gastos_contas', 'gastos_lanc', 'trafego'];
 
 function estadoVazio() {
   return { v: 1, ...Object.fromEntries(TABELAS.map((t) => [t, {}])), exclusoes: Object.fromEntries(TABELAS.map((t) => [t, {}])) };
@@ -115,6 +115,8 @@ const Dados = (() => {
     gastosContas: () => lista('gastos_contas'),
     contaGasto: (uid) => (db.gastos_contas[uid] ? { ...db.gastos_contas[uid], uid } : null),
     lancGasto: (uid) => db.gastos_lanc[uid] || null,
+    trafego: () => lista('trafego'),
+    investimento: (uid) => (db.trafego[uid] ? { ...db.trafego[uid], uid } : null),
   };
 })();
 
@@ -122,6 +124,10 @@ const Dados = (() => {
 const PLATAFORMAS = ['PS3', 'PS4', 'PS5', 'Xbox One S', 'Xbox One X', 'Xbox Series S', 'Xbox Series X', 'Nintendo Switch'];
 const ARMAZ = ['8 GB', '16 GB', '32 GB', '64 GB', '128 GB', '256 GB', '512 GB', '1 TB'];
 const BATS = Array.from({ length: 51 }, (_, i) => `${100 - i}%`);
+// de onde veio a compra / a venda (igual ao PC) — base do relatório de Tráfego pago
+const ORIGENS = ['', 'OlxPay', 'Anúncio pago', 'Marketplace (grátis)', 'Instagram / WhatsApp', 'Indicação', 'Cliente antigo', 'Troca', 'Outro'];
+const ORIGEM_ANUNCIO = 'Anúncio pago';
+const CANAIS_TRAFEGO = ['Facebook / Instagram (Meta)', 'OLX (destaque)', 'Google', 'Outro'];
 const STATUS_ITEM = ['', 'Aguardando venda', 'Chegando', 'Aguardando envio'];
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
