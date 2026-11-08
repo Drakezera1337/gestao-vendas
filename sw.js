@@ -1,8 +1,8 @@
 // App instalável e funcionando sem internet: guarda os arquivos do site.
 // Os dados ficam no localStorage e a API do GitHub nunca passa pelo cache.
-const CACHE = 'gestao-v26';
-const ARQUIVOS = ['./', 'index.html', 'styles.css?v=26', 'config.js?v=26', 'cripto.js?v=26', 'dados.js?v=26',
-  'sync.js?v=26', 'app.js?v=26', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+const CACHE = 'gestao-v27';
+const ARQUIVOS = ['./', 'index.html', 'styles.css?v=27', 'config.js?v=27', 'cripto.js?v=27', 'dados.js?v=27',
+  'sync.js?v=27', 'app.js?v=27', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ARQUIVOS)).then(() => self.skipWaiting()));
